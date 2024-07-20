@@ -7,7 +7,6 @@
 #include "nvs_flash.h"
 #include "esp_mac.h"
 
-
 #include "program.h"
 #include "wifi.h"
 
@@ -16,6 +15,9 @@
 
 static const char *TAG = "main";
 static uint8_t s_led_state = 1;
+
+static char *wifi_ssid = "TP-Link-29";
+static char *wifi_password = "***REMOVED***";
 
 static void blink_led(void)
 {
@@ -46,12 +48,16 @@ void app_main(void)
 
     gpio_reset_pin(LED_GPIO);
     gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
+    wifiSTAConnect(wifi_ssid, wifi_password);
 
     while (true)
     {
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(4000 / portTICK_PERIOD_MS);
         ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
         blink_led();
+        
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        //wifiSTADisconnect();
     }
     
 }

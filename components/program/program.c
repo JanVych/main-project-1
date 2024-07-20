@@ -16,6 +16,6 @@ void program()
     while(true)
     {
         log_actions();
-        vTaskDelay(4000 / portTICK_PERIOD_MS);
+        vTaskDelay(6000 / portTICK_PERIOD_MS);
     }
 }

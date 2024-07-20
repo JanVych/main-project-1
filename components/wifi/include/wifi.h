@@ -1,1 +1,2 @@
-void wifiStartAP(void);
+void wifiSTAConnect(char *ssid, char *password);
+void wifiSTADisconnect();
