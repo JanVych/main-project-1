@@ -11,17 +11,19 @@
 static const char *TAG = "wifi";
 static bool is_wifi_init =  false;
 
-static bool is_sta_started = false;
+static bool is_running = false;
+
 static bool is_sta_connected = false;
 
-static bool is_ap_runnnig = false;
+
+const char *station_name = "ESP-32";
 
 bool isSTAConnected(){
     return is_sta_connected;
 }
 
-bool isAPRunnig(){
-    return is_ap_runnnig;
+bool isWifiRunnig(){
+    return is_running;
 }
 
 static void wifiEventHandler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
@@ -35,11 +37,11 @@ static void wifiEventHandler(void* arg, esp_event_base_t event_base, int32_t eve
         ESP_LOGI(TAG, "station "MACSTR" leave, AID=%d",MAC2STR(event->mac), event->aid);
     }
     else if (event_id == WIFI_EVENT_AP_START){
-        is_ap_runnnig = true;
+        is_running = true;
         ESP_LOGI(TAG, "access point started");
     } 
     else if (event_id == WIFI_EVENT_AP_STOP){
-        is_ap_runnnig = false;
+        is_running = false;
         ESP_LOGI(TAG, "access point stoped");
     }
     else if (event_id == WIFI_EVENT_STA_CONNECTED){
@@ -53,11 +55,11 @@ static void wifiEventHandler(void* arg, esp_event_base_t event_base, int32_t eve
         ESP_LOGI(TAG, "disconnected from network: %s", event->ssid);
     }
     else if (event_id == WIFI_EVENT_STA_START){
-        is_sta_started = true;
+        is_running = true;
         ESP_LOGI(TAG, "station started");
     } 
     else if (event_id == WIFI_EVENT_STA_STOP){
-        is_sta_started = false;
+        is_running = false;
         ESP_LOGI(TAG, "station stoped");
     }
 }
@@ -65,7 +67,8 @@ static void wifiEventHandler(void* arg, esp_event_base_t event_base, int32_t eve
 static void wifiInit()
 {
     esp_netif_create_default_wifi_ap();
-    esp_netif_create_default_wifi_sta();
+    esp_netif_t *sta = esp_netif_create_default_wifi_sta();
+    esp_netif_set_hostname(sta, station_name);
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                         ESP_EVENT_ANY_ID,
@@ -81,7 +84,7 @@ static void wifiInit()
 }
 
 // Access point //
-void wifiAPConfig(uint8_t ssid[32], uint8_t password[64], wifi_auth_mode_t authmode, uint8_t max_connections)
+void wifiAPConfig(char* ssid, char* password, wifi_auth_mode_t authmode, uint8_t max_connections)
 {
     if(!is_wifi_init){
         wifiInit();        
@@ -90,12 +93,12 @@ void wifiAPConfig(uint8_t ssid[32], uint8_t password[64], wifi_auth_mode_t authm
         .ap = {
             .authmode = authmode,
             .max_connection = max_connections,
-            .ssid_len = strlen(&ssid),
+            .ssid_len = strlen(ssid),
         },
     };
 
-    strlcpy(*(wifi_config.ap.ssid), *ssid, 32);
-    strlcpy(*(wifi_config.ap.password), *password, 32);
+    strlcpy((char*)wifi_config.ap.ssid, ssid, 32);
+    strlcpy((char*)wifi_config.ap.password, password, 32);
 
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
     ESP_LOGI(TAG, "AP configurated");
@@ -103,23 +106,29 @@ void wifiAPConfig(uint8_t ssid[32], uint8_t password[64], wifi_auth_mode_t authm
 
 void wifiAPStart()
 {
-    if(!is_wifi_init){
-        wifiInit();        
+    if (!is_running)
+    {
+        if(!is_wifi_init){
+            wifiInit();        
+        }
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+        ESP_ERROR_CHECK(esp_wifi_start());
     }
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_start());
 }
 
 void wifiAPStop()
 {
-    esp_wifi_stop();
+    if(is_running)
+    {
+        esp_wifi_stop();
+    }  
 }
 
 // Station //
 
 void wifiSTAStart(char *ssid, char *password)
 {
-    if(!is_sta_started)
+    if(!is_running)
     {
         if(!is_wifi_init){
             wifiInit();        
@@ -127,6 +136,7 @@ void wifiSTAStart(char *ssid, char *password)
         wifi_config_t wifi_config = {
             .sta = {}
         };
+        
         //wifi_config.sta.failure_retry_cnt = 2;
         strlcpy((char*)wifi_config.sta.ssid, ssid, 32);
         strlcpy((char*)wifi_config.sta.password, password, 64);

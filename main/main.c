@@ -9,6 +9,7 @@
 
 #include "program.h"
 #include "wifi.h"
+#include "http_client.h"
 
 
 #define LED_GPIO 2
@@ -49,6 +50,7 @@ void app_main(void)
     gpio_reset_pin(LED_GPIO);
     gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
     wifiSTAConnect(wifi_ssid, wifi_password);
+    httpGet();
 
     while (true)
     {
@@ -57,7 +59,8 @@ void app_main(void)
         blink_led();
         
         vTaskDelay(10000 / portTICK_PERIOD_MS);
-        //wifiSTADisconnect();
+        wifiSTADisconnect();
+        
     }
     
 }

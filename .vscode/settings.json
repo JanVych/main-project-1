@@ -21,7 +21,10 @@
         "stdio.h": "c",
         "string.h": "c",
         "esp_mac.h": "c",
-        "esp_wifi.h": "c"
+        "esp_wifi.h": "c",
+        "esp_netif.h": "c",
+        "wifi.h": "c",
+        "esp_err.h": "c"
     },
     "idf.flashType": "UART",
     "idf.portWin": "COM7",
