@@ -1,19 +1,38 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "http_client.h"
 #include "esp_http_client.h"
 #include "esp_netif.h"
+#include "esp_crt_bundle.h"
+#include "esp_log.h"
+#include <cJSON.h>
 
 static const char *TAG = "http_client";
 
 static esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt)
 {
+    http_response_t *response = evt->user_data;
     switch (evt->event_id)
-    {
-    case HTTP_EVENT_ON_DATA:
-        printf("HTTP_EVENT_ON_DATA: %.*s\n", evt->data_len, (char *)evt->data);
+    { 
+    case HTTP_EVENT_ON_HEADER:
+        ESP_LOGI(TAG ,"HTTP_EVENT_ON_HEADER, %s : %s", evt->header_key, evt->header_value);
+        if (strcmp(evt->header_key, "Content-Type")){
+            response->content_type = evt->header_value;
+        }
         break;
-    
+    case HTTP_EVENT_ON_DATA:
+        ESP_LOGI(TAG ,"HTTP_EVENT_ON_DATA, %.*s", evt->data_len, (char *)evt->data);
+        if(response->data != NULL){
+             free(response->data);
+        }
+        response->data = calloc(evt->data_len, 1);
+        response->data_len = evt->data_len;
+        memcpy(response->data, evt->data, evt->data_len);
+        break;
+
     case HTTP_EVENT_ERROR:
+        ESP_LOGI(TAG ,"HTTP_EVENT_ERROR");
         break;
 
     default:
@@ -22,17 +41,53 @@ static esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt)
     return ESP_OK;
 }
 
-void httpGet()
+static void httpSend(char *url, esp_http_client_method_t method, http_response_t *response, char *data, char *data_type)
 {
     esp_http_client_config_t config_get =
     {
-        .url = "http://worldclockapi.com/api/json/utc/now",
-        .method = HTTP_METHOD_GET,
-        .cert_pem = NULL,
-        .event_handler = client_event_get_handler
+        .url = url,
+        .method = method,
+        .event_handler = client_event_get_handler,
+        .transport_type = HTTP_TRANSPORT_OVER_SSL,
+        .crt_bundle_attach = esp_crt_bundle_attach,
+        .user_data = response
     };
-        
     esp_http_client_handle_t client = esp_http_client_init(&config_get);
+    if(data != NULL){
+        esp_http_client_set_post_field(client, data, strlen(data));
+    }
+    if(data_type != NULL && method == HTTP_METHOD_POST){
+        esp_http_client_set_header(client, "Content-Type", data_type);
+    }
+    else if(data_type != NULL && method == HTTP_METHOD_GET){
+        esp_http_client_set_header(client, "Accept", data_type);
+    }
     esp_http_client_perform(client);
     esp_http_client_cleanup(client);
+}
+
+void httpGet(char *url, http_response_t *response)
+{
+    httpSend(url, HTTP_METHOD_GET, response, NULL, NULL);
+}
+
+void httpPost(char *url, char* data, http_response_t * response)
+{
+    httpSend(url, HTTP_METHOD_POST, response, data, NULL);
+}
+
+void httpGetJson(char *url, http_response_t *response)
+{
+    httpSend(url, HTTP_METHOD_GET, response, NULL, "application/json");
+    if(response->json != NULL){
+        cJSON_Delete(response->json);
+    }
+    response->json = cJSON_ParseWithLength(response->data, response->data_len);
+}
+
+void httpPostJson(char *url, cJSON* json, http_response_t *response)
+{
+    char *data = cJSON_Print(json);
+    httpSend(url, HTTP_METHOD_POST, response, data, "application/json");
+    free(data);
 }
