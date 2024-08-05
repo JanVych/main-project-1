@@ -1,0 +1,2 @@
+void commStart();
+void commStop();

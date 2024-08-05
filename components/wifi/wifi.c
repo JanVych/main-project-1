@@ -15,14 +15,59 @@ static bool is_running = false;
 
 static bool is_sta_connected = false;
 
+static char sta_ssid[32];
+const char *sta_name = "ESP-32";
 
-const char *station_name = "ESP-32";
+char* wifiGetSTASsid()
+{
+    if (is_sta_connected)
+    {
+        char* ssid = malloc(33);
+        strlcpy(ssid, sta_ssid, 33);
+        return ssid;
+    }
+    return NULL;
+}
 
-bool isSTAConnected(){
+char* wifiGetAvailableNetworks()
+{
+    if (is_running)
+    {
+        ESP_LOGI(TAG, "wifi scan started");
+        //wifi_scan_config_t config = { .show_hidden = false };
+        esp_wifi_scan_start(NULL, true);
+
+        uint16_t records_count = 0;
+        esp_wifi_scan_get_ap_num(&records_count);
+
+        wifi_ap_record_t records [records_count];
+        esp_wifi_scan_get_ap_records(&records_count, records);
+        
+        uint32_t total_length = 0;
+        for (int i = 0; i < records_count; i++) {
+            total_length += strlen((char*)records[i].ssid) + 1;
+        }
+        char *records_str = malloc(total_length);
+
+        records_str[0] = '\0';
+        records_str[total_length - 1] = '\0';
+        for (int i = 0; i < records_count; i++) {
+            strcat(records_str, (char*)records[i].ssid);
+            if (i < records_count - 1) {
+                strcat(records_str, ",");
+            }
+        }
+        ESP_LOGI(TAG, "wifi scan stoped, found: %u records", records_count);
+        return records_str;
+    }
+    return NULL;
+}
+
+bool wifiIsSTAConnected(){
     return is_sta_connected;
 }
 
-bool isWifiRunnig(){
+bool wifiIsRunning(){
     return is_running;
 }
 
@@ -68,7 +113,7 @@ static void wifiInit()
 {
     esp_netif_create_default_wifi_ap();
     esp_netif_t *sta = esp_netif_create_default_wifi_sta();
-    esp_netif_set_hostname(sta, station_name);
+    esp_netif_set_hostname(sta, sta_name);
 
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
                                                         ESP_EVENT_ANY_ID,
@@ -84,62 +129,63 @@ static void wifiInit()
 }
 
 // Access point //
-void wifiAPConfig(char* ssid, char* password, wifi_auth_mode_t authmode, uint8_t max_connections)
-{
-    if(!is_wifi_init){
-        wifiInit();        
-    }
-    wifi_config_t wifi_config = {
-        .ap = {
-            .authmode = authmode,
-            .max_connection = max_connections,
-            .ssid_len = strlen(ssid),
-        },
-    };
+// void wifiAPConfig(char* ssid, char* password, wifi_auth_mode_t authmode, uint8_t max_connections)
+// {
+//     if(!is_wifi_init){
+//         wifiInit();        
+//     }
+//     wifi_config_t wifi_config = {
+//         .ap = {
+//             .authmode = authmode,
+//             .max_connection = max_connections,
+//             .ssid_len = strlen(ssid),
+//         },
+//     };
 
-    strlcpy((char*)wifi_config.ap.ssid, ssid, 32);
-    strlcpy((char*)wifi_config.ap.password, password, 32);
+//     strlcpy((char*)wifi_config.ap.ssid, ssid, 32);
+//     strlcpy((char*)wifi_config.ap.password, password, 32);
 
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
-    ESP_LOGI(TAG, "AP configurated");
-}
+//     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &wifi_config));
+//     ESP_LOGI(TAG, "AP configurated");
+// }
 
-void wifiAPStart()
-{
-    if (!is_running)
-    {
-        if(!is_wifi_init){
-            wifiInit();        
-        }
-        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-        ESP_ERROR_CHECK(esp_wifi_start());
-    }
-}
+// void wifiAPStart()
+// {
+//     if (!is_running)
+//     {
+//         if(!is_wifi_init){
+//             wifiInit();        
+//         }
+//         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+//         ESP_ERROR_CHECK(esp_wifi_start());
+//     }
+// }
 
-void wifiAPStop()
-{
-    if(is_running)
-    {
-        esp_wifi_stop();
-    }  
-}
+// void wifiAPStop()
+// {
+//     if(is_running)
+//     {
+//         esp_wifi_stop();
+//     }  
+// }
 
 // Station //
 
-void wifiSTAStart(char *ssid, char *password)
+static void wifiSTAStart(char *ssid, char *password)
 {
     if(!is_running)
     {
         if(!is_wifi_init){
             wifiInit();        
         }
+        strncpy(sta_ssid, ssid, 32);
         wifi_config_t wifi_config = {
             .sta = {}
         };
         
         //wifi_config.sta.failure_retry_cnt = 2;
-        strlcpy((char*)wifi_config.sta.ssid, ssid, 32);
-        strlcpy((char*)wifi_config.sta.password, password, 64);
+        strncpy((char*)wifi_config.sta.ssid, ssid, 32);
+        strncpy((char*)wifi_config.sta.password, password, 64);
         
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));

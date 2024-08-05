@@ -32,7 +32,14 @@
         "array": "c",
         "string": "c",
         "string_view": "c",
-        "span": "c"
+        "span": "c",
+        "server_comm.h": "c",
+        "esp_chip_info.h": "c",
+        "numbers": "c",
+        "esp_app_desc.h": "c",
+        "bitset": "c",
+        "algorithm": "c",
+        "format": "c"
     },
     "idf.flashType": "UART",
     "idf.portWin": "COM7",
