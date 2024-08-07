@@ -5,7 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "esp_chip_info.h"
 #include "esp_app_desc.h"
-#include "esp_flash.h"
+//#include "esp_flash.h"
 #include "nvs.h"
 
 #include "server_comm.h"
@@ -34,7 +34,8 @@ typedef struct server_comm_action_t{
     struct server_comm_action_t *next;
 }server_comm_action_t;
 
-static server_comm_action_t *actions;
+static server_comm_action_t *actions = NULL;
+//bool lock_actions = false;
 
 static void getDeviceInfo(cJSON* json)
 {
@@ -71,14 +72,14 @@ static void getDeviceInfo(cJSON* json)
     cJSON_AddNumberToObject(json, "FreeHeap", (double)esp_get_free_heap_size());
 
     //esp_flash_get_size()
-    uint32_t flash_size;
-    if (esp_flash_get_physical_size(NULL, &flash_size) != ESP_OK) {
-        ESP_LOGE(TAG, "Get flash size failed");
-        cJSON_AddNullToObject(json_to_send, "FlashSize");
-    }
-    else {
-        cJSON_AddNumberToObject(json_to_send, "FlashSize", flash_size);
-    }
+    // uint32_t flash_size;
+    // if (esp_flash_get_physical_size(NULL, &flash_size) != ESP_OK) {
+    //     ESP_LOGE(TAG, "Get flash size failed");
+    //     cJSON_AddNullToObject(json_to_send, "FlashSize");
+    // }
+    // else {
+    //     cJSON_AddNumberToObject(json_to_send, "FlashSize", flash_size);
+    // }
     str = wifiGetSTASsid();
     if(str != NULL){
         cJSON_AddStringToObject(json, "WifiCurrent", str);
@@ -127,16 +128,14 @@ static void mainLoop()
                 bool found = false;
                 if (cJSON_IsString(item)) {
                     server_comm_action_t * current_action = actions;
-                    while (true) 
+                    while (current_action != NULL) 
                     {
                         if(!strcmp(current_action->name, item->string))
                         {
                             current_action->callback(item->valuestring);
                             found = true;
                         }
-                        if(current_action->next == NULL){
-                            break;
-                        }
+                        current_action = current_action->next;
                     };
                     if(!found){
                         ESP_LOGI(TAG ,"callback not registrated,name: %s, arg: %s",item->string ,item->valuestring);
@@ -168,18 +167,32 @@ static server_comm_action_t* creteAction(char* name, serverCommCallback callback
     return action;
 }
 
-void commAddAction(char* name, serverCommCallback)
+void commAddAction(char* name, serverCommCallback callback)
+{
+    if (actions == NULL){
+        actions = creteAction(name, callback);
+    }
+    else
+    {
+        server_comm_action_t *current_action = actions;
+        while(current_action->next != NULL){
+            current_action = current_action->next;
+        }
+        current_action->next = creteAction(name, callback);
+    }
+}
+
+void commDeleteAction(char* name)
 {
 }
 
 static void defaultCallback(char* str){
-    ESP_LOGI(TAG ,"default callback with arg: %s", str);
+    ESP_LOGI(TAG ,"callback with arg: %s", str);
 }
 
 static void init()
 { 
-    char *str =  "default";
-    actions = creteAction(str, defaultCallback);
+    commAddAction("default", defaultCallback);
 
     json_to_send = cJSON_CreateObject();
 

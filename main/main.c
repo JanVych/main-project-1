@@ -39,6 +39,10 @@ static void init()
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 }
 
+static void defaultCallback(char* str){
+    ESP_LOGI(TAG ,"callback with arg: %s", str);
+}
+
 void app_main(void)
 {
     init();
@@ -79,6 +83,7 @@ void app_main(void)
     // ESP_LOGI(TAG, "type : %s", data_post.content_type);
 
     commStart();
+    commAddAction("test-main", defaultCallback);
 
     // char *ssid;
     // char *networks;
