@@ -14,8 +14,8 @@
 
 static const char *TAG = "server_comm";
 
-static char* sever_address = "http://192.168.0.103:45455/api/modules";
-static char* sever_actions_address = "http://192.168.0.103:45455/api/actions?id=1";
+static char* sever_address = "http://192.168.0.105:45455/api/modules";
+static char* sever_actions_address = "http://192.168.0.105:45455/api/actions?id=1";
 
 static uint32_t comm_interval_sec = 60;
 static TaskHandle_t server_comm_task;
@@ -29,6 +29,7 @@ static const char* idf_version;
 
 typedef void (*serverCommCallback)(char*);
 typedef struct server_comm_action_t{
+    
     char *name;
     serverCommCallback callback;
     struct server_comm_action_t *next;

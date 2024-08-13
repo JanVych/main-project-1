@@ -75,6 +75,7 @@ static void httpSend(char *url, esp_http_client_method_t method, http_response_t
         .event_handler = client_event_get_handler,
         .transport_type = HTTP_TRANSPORT_OVER_SSL,
         //.crt_bundle_attach = esp_crt_bundle_attach,
+        .keep_alive_enable = false,
         .user_data = response
     };
     esp_http_client_handle_t client = esp_http_client_init(&config_get);

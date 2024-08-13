@@ -6,6 +6,7 @@
 #include "esp_wifi.h"
 #include "nvs_flash.h"
 #include "esp_flash.h"
+#include "esp_https_ota.h"
 #include <cJSON.h>
 
 #include "program.h"
@@ -20,6 +21,7 @@ static uint8_t s_led_state = 1;
 
 static char *wifi_ssid = "TP-Link-29";
 static char *wifi_password = "***REMOVED***";
+
 
 static void blink_led(void)
 {
@@ -54,8 +56,33 @@ void app_main(void)
 
     wifiSTAConnect(wifi_ssid, wifi_password);
 
-
     vTaskDelay(4000 / portTICK_PERIOD_MS); 
+
+        ESP_LOGI(TAG, "Starting OTA example task");
+    esp_http_client_config_t config = 
+    {
+        .url = "http://192.168.0.105:45455/api/firmware",
+        .keep_alive_enable = true,
+        .cert_pem = NULL,
+    };
+
+    esp_https_ota_config_t ota_config = {
+        .http_config = &config,
+    };
+
+    ESP_LOGI(TAG, "Attempting to download update from %s", config.url);
+    esp_err_t ret = esp_https_ota(&ota_config);
+    if (ret == ESP_OK) {
+        ESP_LOGI(TAG, "OTA Succeed, Rebooting...");
+        esp_restart();
+    } else {
+        ESP_LOGE(TAG, "Firmware upgrade failed");
+    }
+
+    while (true) {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        ESP_LOGI(TAG, "waiting old version");
+    }
     
     // http_response_t data_get = {};
     // char *url = "http://192.168.0.103:45455/api/modules";
