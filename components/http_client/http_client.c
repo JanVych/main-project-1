@@ -10,7 +10,7 @@
 
 static const char *TAG = "http_client";
 
-static esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt)
+static esp_err_t _client_event_get_handler(esp_http_client_event_handle_t evt)
 {
     http_response_t *response = evt->user_data;
     switch (evt->event_id)
@@ -44,7 +44,11 @@ static esp_err_t client_event_get_handler(esp_http_client_event_handle_t evt)
 
 http_response_t* httpCreateResponse()
 {
-    return (http_response_t*)calloc(1, sizeof(http_response_t));
+    http_response_t* response = (http_response_t*)calloc(1, sizeof(http_response_t));
+    response->content_type = NULL;
+    response->data = NULL;
+    response->json = NULL;
+    return response;
 }
 
 void httpCleanResponse(http_response_t *r)
@@ -66,13 +70,13 @@ void httpDeleteResponse(http_response_t *r)
     free(r);
 }
 
-static void httpSend(char *url, esp_http_client_method_t method, http_response_t *response, char *data, char *data_type)
+static void _httpSend(char *url, esp_http_client_method_t method, http_response_t *response, char *data, char *data_type)
 {
     esp_http_client_config_t config_get =
     {
         .url = url,
         .method = method,
-        .event_handler = client_event_get_handler,
+        .event_handler = _client_event_get_handler,
         .transport_type = HTTP_TRANSPORT_OVER_SSL,
         //.crt_bundle_attach = esp_crt_bundle_attach,
         .keep_alive_enable = false,
@@ -102,23 +106,30 @@ static void httpSend(char *url, esp_http_client_method_t method, http_response_t
 
 void httpGet(char *url, http_response_t *response)
 {
-    httpSend(url, HTTP_METHOD_GET, response, NULL, NULL);
+    _httpSend(url, HTTP_METHOD_GET, response, NULL, NULL);
 }
 
 void httpPost(char *url, char* data, http_response_t * response)
 {
-    httpSend(url, HTTP_METHOD_POST, response, data, NULL);
+    _httpSend(url, HTTP_METHOD_POST, response, data, NULL);
 }
 
 void httpGetJson(char *url, http_response_t *response)
 {
-    httpSend(url, HTTP_METHOD_GET, response, NULL, "application/json");
-    response->json = cJSON_ParseWithLength(response->data, response->data_len);
+    ESP_LOGI(TAG ,"get json from: %s", url);
+    _httpSend(url, HTTP_METHOD_GET, response, NULL, "application/json");
+    if(response != NULL){
+        response->json = cJSON_ParseWithLength(response->data, response->data_len);
+    }
 }
 
 void httpPostJson(char *url, cJSON* json, http_response_t *response)
 {
+    ESP_LOGI(TAG ,"post json to: %s", url);
     char *data = cJSON_Print(json);
-    httpSend(url, HTTP_METHOD_POST, response, data, "application/json");
+    _httpSend(url, HTTP_METHOD_POST, response, data, "application/json");
     free(data);
+    if(response != NULL){
+        response->json = cJSON_ParseWithLength(response->data, response->data_len);
+    }
 }
