@@ -37,6 +37,8 @@ typedef struct server_comm_action_t{
 static server_comm_action_t *actions = NULL;
 //bool lock_actions = false;
 
+
+// TODO delete - use - esp_http_client_config_t
 static void buildUrl(char *url, int16_t url_size, char *address, char *path)
 {
     url[0] = 0;
@@ -155,6 +157,7 @@ static void _processActions(cJSON *json_actions)
         }
     }
 }
+
 
 static void _mainLoop()
 {
