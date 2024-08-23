@@ -102,11 +102,11 @@ static void getDeviceInfo(cJSON* json)
     // else {
     //     cJSON_AddNumberToObject(json_to_send, "FlashSize", flash_size);
     // }
-    // str = wifiGetSTASsid();
-    // if(str != NULL){
-    //     cJSON_AddStringToObject(json, "WifiCurrent", str);
-    //     free(str);
-    // }
+    str = wifiGetSTASsid();
+    if(str != NULL){
+        cJSON_AddStringToObject(json, "WifiCurrent", str);
+        free(str);
+    }
     // str = wifiGetAvailableNetworks();
     // if(str != NULL){
     //     cJSON_AddStringToObject(json, "WifiInRange", str);
