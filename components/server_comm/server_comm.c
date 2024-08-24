@@ -158,7 +158,7 @@ static void _processActions(cJSON *json_actions)
     }
 }
 
-
+// TODO add security to headers - https://github.com/espressif/esp-idf/issues/3097
 static void _mainLoop()
 {
     http_response_t *actions_response = httpCreateResponse();
