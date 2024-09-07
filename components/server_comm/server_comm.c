@@ -7,6 +7,7 @@
 #include "esp_app_desc.h"
 #include "esp_https_ota.h"
 #include "nvs.h"
+#include "esp_random.h"
 
 #include "server_comm.h"
 #include "http_client.h"
@@ -14,13 +15,12 @@
 
 static const char *TAG = "server_comm";
 
-static char* server_address = "http://192.168.0.103:45455";
+static char* server_address = "http://192.168.0.106:45455";
 
 static uint32_t comm_interval_sec = 60;
 static TaskHandle_t server_comm_task;
 static bool is_initialized = false;
 static cJSON* json_to_send;
-
 
 static const char* chip_name;
 static const char* app_version;
@@ -45,7 +45,7 @@ static void buildUrl(char *url, int16_t url_size, char *address, char *path)
     strncat(url, address, url_size - strlen(url) - 1);
     strncat(url, path, url_size - strlen(url) - 1);
 }
-
+// TODO delete - use - esp_http_client_config_t
 static void builUrlWithQueryId(char *url, int16_t url_size, char *address, char *path, int64_t id)
 {
     char id_buffer[21];
@@ -162,6 +162,7 @@ static void _processActions(cJSON *json_actions)
 static void _mainLoop()
 {
     http_response_t *actions_response = httpCreateResponse();
+    char str[12];
     while(true)
     {
         while (!wifiIsSTAConnected())
@@ -180,7 +181,12 @@ static void _mainLoop()
 
         buildUrl(server_url, 100, server_address, "/api/modules");
         getDeviceInfo(json_to_send);
-        cJSON_AddStringToObject(json_to_send, "test", "ahoj");
+
+        sprintf(str, "%lu", esp_random());
+        cJSON_AddStringToObject(json_to_send, "test", str);
+        sprintf(str, "%lu", esp_random());
+        cJSON_AddStringToObject(json_to_send, "test2", str);
+
         httpPostJson(server_url, json_to_send, actions_response);
 
         //builUrlWithQueryId(server_url, 100, server_address, "/api/actions", id);
@@ -193,6 +199,7 @@ static void _mainLoop()
         else{
             ESP_LOGI(TAG ,"Error, get actions, status code: %ld", actions_response->status);
         }
+
         httpCleanResponse(actions_response);
         cJSON_Delete(json_to_send);
         json_to_send = cJSON_CreateObject();
