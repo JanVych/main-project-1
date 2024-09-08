@@ -39,7 +39,12 @@
         "esp_app_desc.h": "c",
         "bitset": "c",
         "algorithm": "c",
-        "format": "c"
+        "format": "c",
+        "cstdint": "c",
+        "*.tcc": "c",
+        "compare": "c",
+        "random": "c",
+        "regex": "c"
     },
     "idf.flashType": "UART",
     "idf.portWin": "COM7",

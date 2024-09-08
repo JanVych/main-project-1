@@ -123,6 +123,10 @@ void httpGetJson(char *url, http_response_t *response)
     }
 }
 
+/// @brief post json structure to url
+/// @param url target address
+/// @param json cJSON data structure
+/// @param response if not null, convert response to json
 void httpPostJson(char *url, cJSON* json, http_response_t *response)
 {
     ESP_LOGI(TAG ,"post json to: %s", url);
