@@ -1,1 +1,0 @@
-char* etathermGetRealTemp(char* pFOutStr, uint8_t Addr);

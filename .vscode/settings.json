@@ -44,7 +44,9 @@
         "*.tcc": "c",
         "compare": "c",
         "random": "c",
-        "regex": "c"
+        "regex": "c",
+        "uart.h": "c",
+        "esp_ota_ops.h": "c"
     },
     "idf.flashType": "UART",
     "idf.portWin": "COM7",

@@ -14,6 +14,7 @@
 #include "wifi.h"
 #include "http_client.h"
 #include "server_comm.h"
+//#include "etatherm.h"
 
 #define LED_GPIO 2
 
