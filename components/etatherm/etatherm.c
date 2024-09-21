@@ -174,7 +174,7 @@ static etatherm_err_t _sendFrame(uint16_t station_a, uint16_t ram_a, uint8_t com
 static etatherm_err_t _readFrame(uint8_t data_size, uint8_t* out_data)
 {
 	data_size *= 2;
-	// 0xFF 0xFF DLE ETB address D0 data S0 S1 ADDS XORS
+	// 0xFF 0xFF DLE ETB address D0 data(in WORDS) S0 S1 ADDS XORS
 	uint8_t buffer[data_size + 10];
 	memset(buffer, 0, 4);
 
