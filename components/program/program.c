@@ -4,13 +4,13 @@
 #include "freertos/FreeRTOS.h"
 
 #include "server_comm.h"
+#include "etatherm.h"
 
 static const char *TAG = "secondary";
 
 static void defaultCallback(char* str){
     ESP_LOGI(TAG ,"callback with arg: %s", str);
 }
-
 
 void log_actions()
 {
@@ -20,10 +20,16 @@ void log_actions()
 
 void program()
 {
+    etatherm_err_t result;
+    uint8_t value = 0;
     commAddAction("test-program", defaultCallback);
+    result = etatherm_init();
+    ESP_LOGI(TAG, "uart init: %d", result);
     while(true)
     {
         log_actions();
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
+        result = etathermGetRealTemp(0, &value);
+        ESP_LOGI(TAG, "error result: %d value: %u", result, value);
+        vTaskDelay(20000 / portTICK_PERIOD_MS);
     }
 }

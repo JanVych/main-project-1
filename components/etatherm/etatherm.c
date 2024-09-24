@@ -5,6 +5,7 @@
 #include "esp_timer.h"
 #include "driver/uart.h"
 #include "esp_mac.h"
+#include "esp_log.h"
 
 
 #include "etatherm.h"
@@ -13,33 +14,41 @@
 #define	SOH	0x01
 #define	ETB 0x17
 
-#define	ETATHERM_RETRY 3
-#define ETATHERM_UART_NUM UART_NUM_2
+#define	ETA_RETRY 1
 
-#define ETATHERM_HEADER_TIMEOUT_MIL 4000
-#define ETATHERM_FRAME_TIMEOUT_MIL 4000
-#define ETATHERM_BYTE_TIMEOUT_MIL 200
+#define ETA_HEADER_TIMEOUT_MIL 4000
+#define ETA_FRAME_TIMEOUT_MIL 4000
+#define ETA_BYTE_TIMEOUT_MIL 200
 
 #define BYTE_TIMEOUT 6//(96 / 16)  	//96 msec  
 #define FRAME_RESPONSE 2//(4 / 2)		//4 msec  
 
-typedef enum
-{
-	ETATHERM_OK = 0,
-	ETATHERM_ERR,
-	ETATHERM_ERR_INVALID_ADDRESS,
-	ETATHERM_ERR_UART_WRITE,
-	ETATHERM_ERR_UART_READ,
-	ETATHERM_ERR_FRAME_READ_TIMEOUT,
-	ETATHERM_ERR_HEADER_READ_TIMEOUT,
-	ETATHERM_ERR_CRC_ADD,
-	ETATHERM_ERR_CRC_XOR
-}etatherm_err_t;
+static uart_port_t eta_uart_port;
 
 //private
 static etatherm_err_t _readData(uint16_t station_a, uint16_t ram_a, uint8_t* out_data, uint8_t data_size);
 static etatherm_err_t _readFrame(uint8_t data_size, uint8_t* out_data);
 static etatherm_err_t _sendFrame(uint16_t station_a, uint16_t ram_a, uint8_t command, uint8_t* data, uint8_t data_size);
+
+//todo change + error check
+esp_err_t etatherm_init()
+{
+	eta_uart_port = UART_NUM_2;
+	uart_config_t uart_config = 
+	{
+		.baud_rate = 9600,
+    	.data_bits = UART_DATA_8_BITS,
+    	.parity = UART_PARITY_DISABLE,
+    	.stop_bits = UART_STOP_BITS_1,
+    	.flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+	};
+	uart_param_config(eta_uart_port, &uart_config);
+	uart_set_pin(eta_uart_port, 17, 16, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+
+	const int uart_buffer_size = (1024 * 2);
+	uart_driver_install(eta_uart_port, uart_buffer_size, uart_buffer_size, 0, NULL, 0);
+	return ESP_OK;
+}
 
 /// @brief get real temperature from device
 /// @param uart_config
@@ -50,11 +59,11 @@ etatherm_err_t etathermGetRealTemp(uint8_t device_address, uint8_t* out_value)
 {
 	uint8_t out_data[1];
 	etatherm_err_t result;
-	if (device_address < 0 || device_address > 15){
-		return ETATHERM_ERR_INVALID_ADDRESS;
+	if (device_address > 15){
+		return ETA_ERR_INVALID_ADDRESS;
 	}
 	result = _readData(1, 0x60 + device_address, out_data, 1);
-	if(!result){
+	if(result){
 		return result;
 	}
 	/// !!!!!
@@ -64,7 +73,7 @@ etatherm_err_t etathermGetRealTemp(uint8_t device_address, uint8_t* out_value)
 	else{
 		*out_value = (out_data[0] & 0xFF)+ 5;
 	}
-	return ETATHERM_OK;
+	return ETA_OK;
 }
 
 etatherm_err_t etathermGetDesiredTemp(uint8_t device_address, uint8_t *out_value)
@@ -72,17 +81,17 @@ etatherm_err_t etathermGetDesiredTemp(uint8_t device_address, uint8_t *out_value
 	uint8_t out_data[1];
 	etatherm_err_t result;
 
-	if (device_address < 0 || device_address > 15){
-		return ETATHERM_ERR_INVALID_ADDRESS;
+	if (device_address > 15){
+		return ETA_ERR_INVALID_ADDRESS;
 	}
 	result = _readData(1, 0x70 + device_address, out_data, 1);
-	if(!result){
+	if(result){
 		return result;
 	}
 	// or 0xFF ??
 	// address 14 ?
 	*out_value = (out_data[0] & 0x1F)+ 5;
-	return ETATHERM_OK;
+	return ETA_OK;
 }
 
 
@@ -120,21 +129,30 @@ etatherm_err_t etathermGetDesiredTemp(uint8_t device_address, uint8_t *out_value
 static etatherm_err_t _readData(uint16_t station_a, uint16_t ram_a, uint8_t* out_data, uint8_t data_size)
 {
 	uint8_t command = ((data_size - 1) << 4) | 0x08;
-	uint8_t plain_data;
-    etatherm_err_t result;
+    etatherm_err_t result = 1;
 
-    for (uint16_t i = 0; i < ETATHERM_RETRY; i++)
+    for (uint16_t i = 0; i < ETA_RETRY; i++)
     {
+		result = uart_flush(eta_uart_port);
+		if(result){
+			continue;
+		}
+		ESP_LOGI("ETA", "buffer clear");
 		result = _sendFrame(station_a, ram_a, command, out_data, data_size);
-		if(!result){
-			return result;
+		if(result){
+			continue;
 		}
+		ESP_LOGI("ETA", "frame sended");
 		result = _readFrame(data_size, out_data);
-		if (!result){
-			return result;
+		if (result){
+			continue;
 		}
+		ESP_LOGI("ETA", "frame readed");
     }
-	return ETATHERM_OK;
+	if(result){
+		return result;
+	}
+	return ETA_OK;
 }
 
 static etatherm_err_t _sendFrame(uint16_t station_a, uint16_t ram_a, uint8_t command, uint8_t* data, uint8_t data_size)
@@ -164,74 +182,81 @@ static etatherm_err_t _sendFrame(uint16_t station_a, uint16_t ram_a, uint8_t com
 	frame_buffer[data_size + 8] = XORS;
 	frame_buffer[data_size + 9] = 0xFF;
 
-	sended = uart_write_bytes(ETATHERM_UART_NUM, frame_buffer, data_size + 10);
-	if(sended <= 0){
-		return ETATHERM_ERR_UART_WRITE;
+	sended = uart_write_bytes(eta_uart_port, frame_buffer, data_size + 10);
+	if(sended != data_size + 10){
+		return ETA_ERR_UART_WRITE;
 	}
-	return ETATHERM_OK;
+		for (int i = 0; i < data_size + 10; i++){
+		ESP_LOGI("ETA", "0x%02X", frame_buffer[i]);
+	}
+	
+	return ETA_OK;
 }
 
 static etatherm_err_t _readFrame(uint8_t data_size, uint8_t* out_data)
 {
 	data_size *= 2;
 	// 0xFF 0xFF DLE ETB address D0 data(in WORDS) S0 S1 ADDS XORS
-	uint8_t buffer[data_size + 10];
+	uint8_t buffer[6 + data_size + 4];
 	memset(buffer, 0, 4);
 
 	uint8_t adds;
 	uint8_t xors;
-	uint16_t i = 0;
 	uint16_t j = 0;
 	int32_t received;
 
-	int64_t end_time = esp_timer_get_time() + (ETATHERM_FRAME_TIMEOUT_MIL * 1000);
+	int64_t end_time = esp_timer_get_time() + (ETA_FRAME_TIMEOUT_MIL * 1000);
 	
 	// find header
 	while(true)
 	{
 		if(esp_timer_get_time() > end_time){
-			return ETATHERM_ERR_HEADER_READ_TIMEOUT;
+			return ETA_ERR_HEADER_READ_TIMEOUT;
 		}
-		received = uart_read_bytes(ETATHERM_UART_NUM, buffer[i], 1, ETATHERM_BYTE_TIMEOUT_MIL / portTICK_PERIOD_MS);
-		if(received <= 0){
-			return ETATHERM_ERR_UART_READ;
+		received = uart_read_bytes(eta_uart_port, buffer, 1, ETA_BYTE_TIMEOUT_MIL / portTICK_PERIOD_MS);
+		ESP_LOGI("ETA", "recived: %lu, read byte: 0x%02X", received, buffer[0]);
+		if(received < 0){
+			return ETA_ERR_UART_READ;
 		}
-		if((buffer[0] != 0xFF)||(buffer[1] != 0xFF)||(buffer[2] != DLE)||(buffer[3] != ETB)){
-				break;
-			}
-		if(i == 4){
-			i = 0;
-			memset(buffer, 0, 4);
-		} 
-		else i++;
+		if((buffer[3] == 0xFF)&&(buffer[2] == 0xFF)&&(buffer[1] == DLE)&&(buffer[0] == ETB)){
+			break;
+		}
+		printf("0x%02X 0x%02X 0x%02X 0x%02X\n", buffer[0], buffer[1],buffer[2],buffer[3]);
+		buffer[3] = buffer[2];
+		buffer[2] = buffer[1];
+		buffer[1] = buffer[0];
+		buffer[0] = 0;
 	}
 	// get rest of the frame
-	received = uart_read_bytes(ETATHERM_UART_NUM, buffer[4], 6 + data_size, ETATHERM_FRAME_TIMEOUT_MIL / portTICK_PERIOD_MS);
-	if(received <= 0){
-		return ETATHERM_ERR_UART_READ;
+	received = uart_read_bytes(eta_uart_port, buffer + 4, 6 + data_size, ETA_FRAME_TIMEOUT_MIL / portTICK_PERIOD_MS);
+	if(received !=  6 +data_size){
+		return ETA_ERR_UART_READ;
 	}
+
+	buffer[3] = buffer[1];
+	buffer[2] = buffer[0];
 
     //calculate checks
     adds = 0x00;
     xors = 0x00;  
-    for (i = 2; i < 6 + data_size; i++)
+    for (int i = 2; i < 6 + data_size; i++)
     { 
     	adds += buffer[i];
     	xors ^= buffer[i];  	
 	} 
 
 	if(buffer[6 + data_size + 2] != adds){
-		return ETATHERM_ERR_CRC_ADD;
+		return ETA_ERR_CRC_ADD;
 	}
 	if(buffer[6 + data_size + 3] != xors){
-		return ETATHERM_ERR_CRC_XOR;
+		return ETA_ERR_CRC_XOR;
 	}
 
 	//copy data, reduce WORDS -> BYTES
-	for (i = 6; i < 6 + data_size; i = i + 2)
+	for (int i = 6; i < 6 + data_size; i = i + 2)
 	{
 		out_data[j] = buffer[i];
 		j++;
 	}
-	return ETATHERM_OK;
+	return ETA_OK;
 }

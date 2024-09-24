@@ -46,7 +46,9 @@
         "random": "c",
         "regex": "c",
         "uart.h": "c",
-        "esp_ota_ops.h": "c"
+        "esp_ota_ops.h": "c",
+        "stdlib.h": "c",
+        "program.h": "c"
     },
     "idf.flashType": "UART",
     "idf.portWin": "COM7",

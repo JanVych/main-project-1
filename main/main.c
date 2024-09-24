@@ -35,7 +35,7 @@ static void _blinkLed(void)
 
 static void _programStart()
 {
-    xTaskCreate( program, "program", 2048, NULL, tskIDLE_PRIORITY, &program_task );
+    xTaskCreate( program, "program", 20480, NULL, tskIDLE_PRIORITY, &program_task );
 }
 
 static void _check_app()
@@ -80,6 +80,7 @@ void app_main(void)
     wifiSTAConnect(wifi_ssid, wifi_password);
 
     commStart();
+    commStop();
 
     _programStart();
 
