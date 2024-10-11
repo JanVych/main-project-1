@@ -45,15 +45,15 @@ static void buildUrl(char *url, int16_t url_size, char *address, char *path)
     strncat(url, address, url_size - strlen(url) - 1);
     strncat(url, path, url_size - strlen(url) - 1);
 }
-// TODO delete - use - esp_http_client_config_t
-static void builUrlWithQueryId(char *url, int16_t url_size, char *address, char *path, int64_t id)
-{
-    char id_buffer[21];
-    snprintf(id_buffer, sizeof(id_buffer), "%lld", id);
-    buildUrl(url, url_size, address, path);
-    strncat(url, "?id=", url_size - strlen(url) - 1);
-    strncat(url, id_buffer, url_size - strlen(url) - 1);
-}
+// // TODO delete - use - esp_http_client_config_t
+// static void builUrlWithQueryId(char *url, int16_t url_size, char *address, char *path, int64_t id)
+// {
+//     char id_buffer[21];
+//     snprintf(id_buffer, sizeof(id_buffer), "%lld", id);
+//     buildUrl(url, url_size, address, path);
+//     strncat(url, "?id=", url_size - strlen(url) - 1);
+//     strncat(url, id_buffer, url_size - strlen(url) - 1);
+// }
 
 static void getDeviceInfo(cJSON* json)
 {
@@ -209,25 +209,28 @@ static void _mainLoop()
     vTaskDelete(NULL);
 }
 
-static void _performOTA(char* str)
+static void _performOTA(char* programName)
 {
     if(wifiIsSTAConnected())
     {
-        char server_url[100];
-        int64_t id;
-        nvs_handle_t handle;
-        nvs_open("storage", NVS_READONLY, &handle);
-        if (nvs_get_i64(handle, "ModuleId", &id)){
-            id = 0;
-        }
-        nvs_close(handle);
+        char query[40];
+        snprintf(query, sizeof(query), "program=%s", programName);
+        // int64_t id;
+        // nvs_handle_t handle;
+        // nvs_open("storage", NVS_READONLY, &handle);
+        // if (nvs_get_i64(handle, "ModuleId", &id)){
+        //     id = 0;
+        // }
+        // nvs_close(handle);
 
-        builUrlWithQueryId(server_url, 100, server_address,"/api/firmware", id);
+        //builUrlWithQueryId(server_url, 100, server_address,"/api/firmware", id);
 
         ESP_LOGI(TAG, "Starting OTA");
         esp_http_client_config_t config = 
         {
-            .url = server_url,
+            .url = server_address,
+            .path = "/api/firmware",
+            .query = query,
             .keep_alive_enable = true,
             .cert_pem = NULL,
         };
@@ -252,35 +255,35 @@ static void _performOTA(char* str)
     ESP_LOGE(TAG, "Firmware upgrade failed, no internet connection");
 }
 
-static void _setModuleName(char *str)
+static void _setModuleName(char *newName)
 {
-    ESP_LOGI(TAG ,"set module name to: %s",str);
+    ESP_LOGI(TAG ,"set module name to: %s",newName);
     nvs_handle_t handle;
     nvs_open("storage", NVS_READWRITE, &handle);
-    nvs_set_str(handle, "ModuleName", str);
+    nvs_set_str(handle, "ModuleName", newName);
     nvs_commit(handle);
     nvs_close(handle);
 
 }
 
-static void _setModuleKey(char *str)
+static void _setModuleKey(char *newKey)
 {
-    ESP_LOGI(TAG ,"set module key to: %s",str);
+    ESP_LOGI(TAG ,"set module key to: %s",newKey);
     nvs_handle_t handle;
     nvs_open("storage", NVS_READWRITE, &handle);
-    nvs_set_str(handle, "ModuleKey", str);
+    nvs_set_str(handle, "ModuleKey", newKey);
     nvs_commit(handle);
     nvs_close(handle);
 
 }
 
-static void _setModuleId(char *str)
+static void _setModuleId(char *newId)
 {
-    ESP_LOGI(TAG ,"set module id to: %s",str);
+    ESP_LOGI(TAG ,"set module id to: %s",newId);
     nvs_handle_t handle;
     uint64_t id;
     char *endptr;
-    id = strtoll(str, &endptr, 10);
+    id = strtoll(newId, &endptr, 10);
     if(*endptr == '\0')
     {
         nvs_open("storage", NVS_READWRITE, &handle);

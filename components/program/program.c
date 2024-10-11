@@ -20,26 +20,26 @@ void log_actions()
 
 void program()
 {
-    eta_err_t result;
-    uint8_t value = 0;
-    commAddAction("test-program", defaultCallback);
-    result = etaInit();
-    ESP_LOGI(TAG, "uart init: %d", result);
-    uint8_t room = 0;
-    uint8_t setval = 13;
+    // eta_err_t result;
+    // uint8_t value = 0;
+    // commAddAction("test-program", defaultCallback);
+    // result = etaInit();
+    // ESP_LOGI(TAG, "uart init: %d", result);
+    // uint8_t room = 0;
+    // uint8_t setval = 13;
     while(true)
     {
         log_actions();
-        result = etaGetRealTemp(room, &value);
-        ESP_LOGI(TAG, "real temp result: %d, room: %u, value: %u", result, room, value);
-        result = etaGetDesiredTemp(room, &value);
-        ESP_LOGI(TAG, "desired temp result: %d, room: %u, value: %u", result, room, value);
-        result = etaGetOzTemp(room, &value);
-        ESP_LOGI(TAG, "oz temp result: %d, room: %u, value: %u", result, room, value);
+        // result = etaGetRealTemp(room, &value);
+        // ESP_LOGI(TAG, "real temp result: %d, room: %u, value: %u", result, room, value);
+        // result = etaGetDesiredTemp(room, &value);
+        // ESP_LOGI(TAG, "desired temp result: %d, room: %u, value: %u", result, room, value);
+        // result = etaGetOzTemp(room, &value);
+        // ESP_LOGI(TAG, "oz temp result: %d, room: %u, value: %u", result, room, value);
 
-        result = etaSetOzTemp(0, setval);
-        ESP_LOGI(TAG, "set oz temp result: %d, room: %u, value: %u", result, room, setval);
+        // result = etaSetOzTemp(0, setval);
+        // ESP_LOGI(TAG, "set oz temp result: %d, room: %u, value: %u", result, room, setval);
 
-        vTaskDelay(20000 / portTICK_PERIOD_MS);
+        // vTaskDelay(20000 / portTICK_PERIOD_MS);
     }
 }
