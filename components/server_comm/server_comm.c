@@ -310,21 +310,51 @@ static server_comm_action_t* _creteAction(char* name, serverCommCallback callbac
 
 void commAddAction(char* name, serverCommCallback callback)
 {
+    server_comm_action_t *current_action = actions;
+    server_comm_action_t *prew_action = NULL;
+
     if (actions == NULL){
         actions = _creteAction(name, callback);
     }
     else
     {
-        server_comm_action_t *current_action = actions;
-        while(current_action->next != NULL){
+        while(current_action != NULL)
+        {
+            if(strcmp(current_action->name, name) == 0 && current_action->callback == callback)
+            {
+                ESP_LOGI(TAG ,"action name: %s, with callback: %p, already exist", name, callback);
+                return;
+            }
+            prew_action = current_action;
             current_action = current_action->next;
         }
-        current_action->next = _creteAction(name, callback);
+        prew_action->next = _creteAction(name, callback);
     }
 }
 
-void commDeleteAction(char* name)
+
+void commDeleteAction(char* name, serverCommCallback callback)
 {
+    server_comm_action_t *prew_action = NULL;
+    server_comm_action_t *current_action = actions;
+    
+    while(current_action != NULL)
+    {
+        if(strcmp(current_action->name, name) == 0 && current_action->callback == callback)
+        {
+            if(prew_action == NULL){
+                actions = NULL;
+            }
+            else{
+                prew_action->next = current_action->next;
+            }
+            free(current_action->name);
+            free(current_action);
+            return;
+        }
+        prew_action = current_action;
+        current_action = current_action->next;
+    }
 }
 
 static void _init()
