@@ -15,9 +15,9 @@
 
 static const char *TAG = "server_comm";
 
-static char* server_address = "http://192.168.0.106:45455";
+static char* server_address = "http://192.168.0.106:45456/";
 
-static uint32_t comm_interval_sec = 60;
+static uint32_t comm_interval_sec = 120;
 static TaskHandle_t server_comm_task;
 static bool is_initialized = false;
 static cJSON* json_to_send;
@@ -179,7 +179,7 @@ static void _mainLoop()
         }
         nvs_close(handle);
 
-        buildUrl(server_url, 100, server_address, "/api/modules");
+        buildUrl(server_url, 100, server_address, "api/modules");
         getDeviceInfo(json_to_send);
 
         sprintf(str, "%lu", esp_random());
@@ -354,6 +354,15 @@ void commDeleteAction(char* name, serverCommCallback callback)
         }
         prew_action = current_action;
         current_action = current_action->next;
+    }
+}
+
+void commAddMessage(char* key, char* value)
+{
+    cJSON *existing_item = cJSON_GetObjectItem(json_to_send, key);
+    if (existing_item == NULL)
+    {
+         cJSON_AddStringToObject(json_to_send, key, value);
     }
 }
 

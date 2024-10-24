@@ -20,17 +20,36 @@ void log_actions()
 
 void program()
 {
-    // eta_err_t result;
-    // uint8_t value = 0;
-    // commAddAction("test-program", defaultCallback);
-    // result = eta_Init(UART_NUM_2, 17, 16);
+    eta_err_t result;
+    uint8_t value = 0;
+    char valueString[40];
+    char room[] = "room_";
+    commAddAction("test-program", defaultCallback);
+    result = eta_Init(UART_NUM_2, 17, 16);
     // ESP_LOGI(TAG, "uart init: %d", result);
     // uint8_t room = 2;
     // uint8_t setval = 14;
     while(true)
     {
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        ESP_LOGI(TAG, "rooms scan started");
         log_actions();
-        // result = eta_GetRealTemp(1, room, &value);
+        for(int i = 0; i < 10; i++)
+        {
+            room[4] = i + 48;
+            result = eta_GetRealTemp(1, i, &value);
+            ESP_LOGI(TAG, "real temp result: %d, room: %u, value: %u", result, i, value);
+            if(!result){
+                sprintf(valueString, "%d", value);
+                commAddMessage(room, valueString);
+            }
+            else{
+                sprintf(valueString, "error: %d", result);
+                commAddMessage(room, valueString);
+            }
+        }
+        ESP_LOGI(TAG, "rooms scan ended");
+        //result = eta_GetRealTemp(1, room, &value);
         // ESP_LOGI(TAG, "real temp result: %d, room: %u, value: %u", result, room, value);
         // result = eta_GetDesiredTemp(1, room, &value);
         // ESP_LOGI(TAG, "desired temp result: %d, room: %u, value: %u", result, room, value);
