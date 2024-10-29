@@ -15,7 +15,9 @@
 
 static const char *TAG = "server_comm";
 
-static char* server_address = "http://192.168.0.106:45456/";
+static char* server_address = "http://192.168.0.107:45455/";
+static char* server_host = "192.168.0.107";
+static uint32_t server_port = 45455;
 
 static uint32_t comm_interval_sec = 120;
 static TaskHandle_t server_comm_task;
@@ -213,22 +215,15 @@ static void _performOTA(char* programName)
 {
     if(wifiIsSTAConnected())
     {
-        char query[40];
+        char query[50];
         snprintf(query, sizeof(query), "program=%s", programName);
-        // int64_t id;
-        // nvs_handle_t handle;
-        // nvs_open("storage", NVS_READONLY, &handle);
-        // if (nvs_get_i64(handle, "ModuleId", &id)){
-        //     id = 0;
-        // }
-        // nvs_close(handle);
-
-        //builUrlWithQueryId(server_url, 100, server_address,"/api/firmware", id);
 
         ESP_LOGI(TAG, "Starting OTA");
         esp_http_client_config_t config = 
         {
-            .url = server_address,
+            .host = server_host,
+            .port = server_port,
+            // .url = "http://192.168.0.107:45455/api/firmware?program=projekt-1",
             .path = "/api/firmware",
             .query = query,
             .keep_alive_enable = true,
@@ -239,10 +234,15 @@ static void _performOTA(char* programName)
             .http_config = &config,
         };
 
-        ESP_LOGI(TAG, "Attempting to download update from %s", config.url);
+        //ESP_LOGI(TAG, "Attempting to download update from %s", config.url);
         esp_err_t ret = esp_https_ota(&ota_config);
         if (ret == ESP_OK)
         {
+            // nvs_handle_t handle;
+            // nvs_open("storage", NVS_READWRITE, &handle);
+            // nvs_set_str(handle, "ProgramName", programName);
+            // nvs_commit(handle);
+            // nvs_close(handle);
             ESP_LOGI(TAG, "OTA Succeed, Rebooting...");
             esp_restart();
         } 

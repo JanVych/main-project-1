@@ -80,7 +80,7 @@ void app_main(void)
     wifiSTAConnect(wifi_ssid, wifi_password);
 
     commStart();
-    commStop();
+    //commStop();
 
     _programStart();
 

@@ -32,23 +32,24 @@ void program()
     while(true)
     {
         vTaskDelay(10000 / portTICK_PERIOD_MS);
-        ESP_LOGI(TAG, "rooms scan started");
         log_actions();
-        for(int i = 0; i < 10; i++)
-        {
-            room[4] = i + 48;
-            result = eta_GetRealTemp(1, i, &value);
-            ESP_LOGI(TAG, "real temp result: %d, room: %u, value: %u", result, i, value);
-            if(!result){
-                sprintf(valueString, "%d", value);
-                commAddMessage(room, valueString);
-            }
-            else{
-                sprintf(valueString, "error: %d", result);
-                commAddMessage(room, valueString);
-            }
-        }
-        ESP_LOGI(TAG, "rooms scan ended");
+        // ESP_LOGI(TAG, "rooms scan started");
+
+        // for(int i = 0; i < 10; i++)
+        // {
+        //     room[4] = i + 48;
+        //     result = eta_GetRealTemp(1, i, &value);
+        //     ESP_LOGI(TAG, "real temp result: %d, room: %u, value: %u", result, i, value);
+        //     if(!result){
+        //         sprintf(valueString, "%d", value);
+        //         commAddMessage(room, valueString);
+        //     }
+        //     else{
+        //         sprintf(valueString, "error: %d", result);
+        //         commAddMessage(room, valueString);
+        //     }
+        // }
+        // ESP_LOGI(TAG, "rooms scan ended");
         //result = eta_GetRealTemp(1, room, &value);
         // ESP_LOGI(TAG, "real temp result: %d, room: %u, value: %u", result, room, value);
         // result = eta_GetDesiredTemp(1, room, &value);
@@ -63,6 +64,6 @@ void program()
         // ESP_LOGI(TAG, "type value: %d, room: %u, value: %u", result, room, value);
 
 
-        vTaskDelay(20000 / portTICK_PERIOD_MS);
+        // vTaskDelay(20000 / portTICK_PERIOD_MS);
     }
 }
