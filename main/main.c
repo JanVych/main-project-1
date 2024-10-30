@@ -42,16 +42,32 @@ static void _check_app()
 {
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t ota_state;
+    nvs_handle handle;
+    // get state of current running partition
     if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) 
     {
+        // first boot of this partition after OTA
         if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) 
         {
             ///////////// !!!
             bool is_ok = true;
-            if (is_ok) {
+            if (is_ok) 
+            {
                 ESP_LOGI(TAG, "Diagnostics completed successfully");
+                // confirm and set new program name
+                nvs_open("storage", NVS_READONLY, &handle);
+                uint32_t len;
+                if (nvs_get_str(handle,"ProgramName", NULL, &len) == ESP_OK){
+                    char* str = malloc(len);
+                    nvs_get_str(handle, "_ProgramName", str, &len);
+                    nvs_set_str(handle, "ProgramName", str);
+                    nvs_commit(handle);
+                    free(str);
+                    nvs_close(handle);
+                }
                 esp_ota_mark_app_valid_cancel_rollback();
-            } else {
+            }
+            else {
                 ESP_LOGE(TAG, "Diagnostics failed! Start rollback to the previous version");
                 esp_ota_mark_app_invalid_rollback_and_reboot();
             }

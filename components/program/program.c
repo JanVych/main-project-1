@@ -20,12 +20,12 @@ void log_actions()
 
 void program()
 {
-    eta_err_t result;
-    uint8_t value = 0;
-    char valueString[40];
-    char room[] = "room_";
+    // eta_err_t result;
+    // uint8_t value = 0;
+    // char valueString[40];
+    // char room[] = "room_";
     commAddAction("test-program", defaultCallback);
-    result = eta_Init(UART_NUM_2, 17, 16);
+    // result = eta_Init(UART_NUM_2, 17, 16);
     // ESP_LOGI(TAG, "uart init: %d", result);
     // uint8_t room = 2;
     // uint8_t setval = 14;

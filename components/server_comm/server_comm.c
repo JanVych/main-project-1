@@ -22,7 +22,7 @@ static uint32_t server_port = 45455;
 static uint32_t comm_interval_sec = 120;
 static TaskHandle_t server_comm_task;
 static bool is_initialized = false;
-static cJSON* json_to_send;
+static cJSON* _json_to_send;
 
 static const char* chip_name;
 static const char* app_version;
@@ -30,13 +30,20 @@ static const char* idf_version;
 
 typedef void (*serverCommCallback)(char*);
 typedef struct server_comm_action_t{
-    
-    char *name;
+    char *key;
     serverCommCallback callback;
     struct server_comm_action_t *next;
 }server_comm_action_t;
 
-static server_comm_action_t *actions = NULL;
+typedef cJSON* (*messageCommCallback)();
+typedef struct message_comm_struct_t{
+    char *key;
+    messageCommCallback callback;
+    struct message_comm_struct_t *next;
+}message_comm_struct_t;
+
+static message_comm_struct_t* _messages = NULL;
+static server_comm_action_t* _actions = NULL;
 //bool lock_actions = false;
 
 
@@ -137,7 +144,7 @@ static const char* _get_chip_name()
     }
 }
 
-static void _processActions(cJSON *json_actions)
+static void _processActions(cJSON *json_actions, server_comm_action_t* actions)
 {
     cJSON *item = NULL;
     cJSON_ArrayForEach(item, json_actions){
@@ -146,7 +153,7 @@ static void _processActions(cJSON *json_actions)
             server_comm_action_t * current_action = actions;
             while (current_action != NULL) 
             {
-                if(!strcmp(current_action->name, item->string))
+                if(!strcmp(current_action->key, item->string))
                 {
                     current_action->callback(item->valuestring);
                     found = true;
@@ -157,6 +164,18 @@ static void _processActions(cJSON *json_actions)
                 ESP_LOGI(TAG ,"callback not registrated,name: %s, arg: %s",item->string ,item->valuestring);
             }
         }
+    }
+}
+
+static void _loadMessages(cJSON* json_messages, message_comm_struct_t* callbacks)
+{
+    message_comm_struct_t* current_callback = callbacks;
+    cJSON* callback_result = NULL;
+    while(current_callback != NULL)
+    {
+        callback_result = current_callback->callback();
+        cJSON_AddItemToObject(json_messages, current_callback->key, callback_result);
+        current_callback = current_callback->next;
     }
 }
 
@@ -182,29 +201,30 @@ static void _mainLoop()
         nvs_close(handle);
 
         buildUrl(server_url, 100, server_address, "api/modules");
-        getDeviceInfo(json_to_send);
+        getDeviceInfo(_json_to_send);
 
+        _loadMessages(_json_to_send, _messages);
         sprintf(str, "%lu", esp_random());
-        cJSON_AddStringToObject(json_to_send, "test", str);
+        cJSON_AddStringToObject(_json_to_send, "test", str);
         sprintf(str, "%lu", esp_random());
-        cJSON_AddStringToObject(json_to_send, "test2", str);
+        cJSON_AddStringToObject(_json_to_send, "test2", str);
 
-        httpPostJson(server_url, json_to_send, actions_response);
+        httpPostJson(server_url, _json_to_send, actions_response);
 
         //builUrlWithQueryId(server_url, 100, server_address, "/api/actions", id);
         //httpGetJson(server_url, actions_response);
 
         if (actions_response->status == 200){
             ESP_LOGI(TAG ,"Response OK, processing actions...");
-            _processActions(actions_response->json);
+            _processActions(actions_response->json, _actions);
         }
         else{
             ESP_LOGI(TAG ,"Error, get actions, status code: %ld", actions_response->status);
         }
 
         httpCleanResponse(actions_response);
-        cJSON_Delete(json_to_send);
-        json_to_send = cJSON_CreateObject();
+        cJSON_Delete(_json_to_send);
+        _json_to_send = cJSON_CreateObject();
 
         vTaskDelay(comm_interval_sec * 1000 / portTICK_PERIOD_MS);
     }
@@ -223,7 +243,6 @@ static void _performOTA(char* programName)
         {
             .host = server_host,
             .port = server_port,
-            // .url = "http://192.168.0.107:45455/api/firmware?program=projekt-1",
             .path = "/api/firmware",
             .query = query,
             .keep_alive_enable = true,
@@ -238,11 +257,11 @@ static void _performOTA(char* programName)
         esp_err_t ret = esp_https_ota(&ota_config);
         if (ret == ESP_OK)
         {
-            // nvs_handle_t handle;
-            // nvs_open("storage", NVS_READWRITE, &handle);
-            // nvs_set_str(handle, "ProgramName", programName);
-            // nvs_commit(handle);
-            // nvs_close(handle);
+            nvs_handle_t handle;
+            nvs_open("storage", NVS_READWRITE, &handle);
+            nvs_set_str(handle, "_ProgramName", programName);
+            nvs_commit(handle);
+            nvs_close(handle);
             ESP_LOGI(TAG, "OTA Succeed, Rebooting...");
             esp_restart();
         } 
@@ -297,12 +316,12 @@ static void defaultCallback(char* str){
     ESP_LOGI(TAG ,"callback with arg: %s", str);
 }
 
-static server_comm_action_t* _creteAction(char* name, serverCommCallback callback)
+static server_comm_action_t* _creteAction(char* key, serverCommCallback callback)
 {
     server_comm_action_t *action = (server_comm_action_t*)calloc(1, sizeof(server_comm_action_t));
-    uint16_t len = strlen(name) + 1;
-    action->name = (char*)malloc(len);
-    strlcpy(action->name, name, len);
+    uint16_t len = strlen(key) + 1;
+    action->key = (char*)malloc(len);
+    strlcpy(action->key, key, len);
     action->callback = callback;
     action->next = NULL;
     return action;
@@ -310,17 +329,17 @@ static server_comm_action_t* _creteAction(char* name, serverCommCallback callbac
 
 void commAddAction(char* name, serverCommCallback callback)
 {
-    server_comm_action_t *current_action = actions;
+    server_comm_action_t *current_action = _actions;
     server_comm_action_t *prew_action = NULL;
 
-    if (actions == NULL){
-        actions = _creteAction(name, callback);
+    if (_actions == NULL){
+        _actions = _creteAction(name, callback);
     }
     else
     {
         while(current_action != NULL)
         {
-            if(strcmp(current_action->name, name) == 0 && current_action->callback == callback)
+            if(strcmp(current_action->key, name) == 0 && current_action->callback == callback)
             {
                 ESP_LOGI(TAG ,"action name: %s, with callback: %p, already exist", name, callback);
                 return;
@@ -336,19 +355,19 @@ void commAddAction(char* name, serverCommCallback callback)
 void commDeleteAction(char* name, serverCommCallback callback)
 {
     server_comm_action_t *prew_action = NULL;
-    server_comm_action_t *current_action = actions;
+    server_comm_action_t *current_action = _actions;
     
     while(current_action != NULL)
     {
-        if(strcmp(current_action->name, name) == 0 && current_action->callback == callback)
+        if(strcmp(current_action->key, name) == 0 && current_action->callback == callback)
         {
             if(prew_action == NULL){
-                actions = NULL;
+                _actions = NULL;
             }
             else{
                 prew_action->next = current_action->next;
             }
-            free(current_action->name);
+            free(current_action->key);
             free(current_action);
             return;
         }
@@ -359,10 +378,45 @@ void commDeleteAction(char* name, serverCommCallback callback)
 
 void commAddMessage(char* key, char* value)
 {
-    cJSON *existing_item = cJSON_GetObjectItem(json_to_send, key);
+    cJSON *existing_item = cJSON_GetObjectItem(_json_to_send, key);
     if (existing_item == NULL)
     {
-         cJSON_AddStringToObject(json_to_send, key, value);
+         cJSON_AddStringToObject(_json_to_send, key, value);
+    }
+}
+
+static message_comm_struct_t* _createMessage(char* key, messageCommCallback callback)
+{
+    message_comm_struct_t* message = (message_comm_struct_t*)calloc(1, sizeof(message_comm_struct_t));
+    uint16_t len = strlen(key) + 1;
+    message->key = (char*)malloc(len);
+    strlcpy(message->key, key, len);
+    message->callback = callback;
+    message->next = NULL;
+    return message;
+} 
+
+void commAddMessgeCallback(char* key, messageCommCallback callback)
+{
+    message_comm_struct_t* current_message = _messages;
+    message_comm_struct_t* prew_message = NULL;
+
+    if (_messages == NULL){
+        _messages = _createMessage(key, callback);
+    }
+    else
+    {
+        while(current_message != NULL)
+        {
+            if(strcmp(current_message->key, key) == 0 && current_message->callback == callback)
+            {
+                ESP_LOGI(TAG ,"action name: %s, with callback: %p, already exist", key, callback);
+                return;
+            }
+            prew_message = current_message;
+            current_message = current_message->next;
+        }
+        prew_message->next = _createMessage(key, callback);
     }
 }
 
@@ -374,7 +428,7 @@ static void _init()
     commAddAction("SetModuleName", _setModuleName);
     commAddAction("SetModuleKey", _setModuleKey);
 
-    json_to_send = cJSON_CreateObject();
+    _json_to_send = cJSON_CreateObject();
 
     const esp_app_desc_t *desc = esp_app_get_description();
     chip_name = _get_chip_name();
