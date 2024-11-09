@@ -8,6 +8,7 @@
 #include "esp_https_ota.h"
 #include "nvs.h"
 #include "esp_random.h"
+#include "esp_crt_bundle.h"
 
 #include "server_comm.h"
 #include "http_client.h"
@@ -15,62 +16,86 @@
 
 static const char *TAG = "server_comm";
 
-static char* server_address = "http://192.168.0.107:45455/";
-static char* server_host = "192.168.0.107";
-static uint32_t server_port = 45455;
+//static char* _server_address = "http://192.168.0.108:45455/";
+//static char* _server_address = "https://krepenec.streamsupporter.xyz/";
+//static char* _server_host = "192.168.0.108";
+static char* _server_host = "krepenec.streamsupporter.xyz";
+//static uint32_t _server_port = 45455;
 
-static uint32_t comm_interval_sec = 120;
+static uint32_t comm_interval_sec = 60;
 static TaskHandle_t server_comm_task;
 static bool is_initialized = false;
 static cJSON* _json_to_send;
 
-static const char* chip_name;
-static const char* app_version;
-static const char* idf_version;
+typedef enum 
+{
+    COMM_CALLBACK_STR,
+    COMM_CALLBACK_I32,
+    COMM_CALLBACK_BOOL,
+    COMM_CALLBACK_CJSON
+} callback_type_t;
+
+typedef union message_callback_t
+{
+    char* (*returStr_f)();
+    int32_t (*returnI32_f)();
+    bool (*returnBool_f)();
+    cJSON* (*returnCjson_f)();
+} message_callback_t;
+
+// typedef union{
+//     void (*strCallback)(const char*);
+//     void (*intCallback)(int32_t);
+//     void (*boolCallback)(bool);
+//     void (*jsonCallback)(cJSON*);
+// } action_callback_u;
+
+typedef struct message_comm_struct_t
+{
+    char* key;
+    callback_type_t type;
+    message_callback_t callback;
+    struct message_comm_struct_t* next;
+} message_comm_struct_t;
 
 typedef void (*serverCommCallback)(char*);
+
 typedef struct server_comm_action_t{
     char *key;
     serverCommCallback callback;
     struct server_comm_action_t *next;
 }server_comm_action_t;
 
-typedef cJSON* (*messageCommCallback)();
-typedef struct message_comm_struct_t{
-    char *key;
-    messageCommCallback callback;
-    struct message_comm_struct_t *next;
-}message_comm_struct_t;
-
 static message_comm_struct_t* _messages = NULL;
 static server_comm_action_t* _actions = NULL;
-//bool lock_actions = false;
 
-
-// TODO delete - use - esp_http_client_config_t
-static void buildUrl(char *url, int16_t url_size, char *address, char *path)
+static const char* _GetChipName() 
 {
-    url[0] = 0;
-    strncat(url, address, url_size - strlen(url) - 1);
-    strncat(url, path, url_size - strlen(url) - 1);
+    esp_chip_info_t chip_info;
+    esp_chip_info(&chip_info);
+    switch (chip_info.model) {
+        case CHIP_ESP32: return "ESP32";
+        case CHIP_ESP32S2: return "ESP32-S2";
+        case CHIP_ESP32S3: return "ESP32-S3";
+        case CHIP_ESP32C3: return "ESP32-C3";
+        case CHIP_ESP32C2: return "ESP32-C2";
+        case CHIP_ESP32C6: return "ESP32-C6";
+        case CHIP_ESP32H2: return "ESP32-H2";
+        case CHIP_ESP32P4: return "ESP32-P4";
+        case CHIP_POSIX_LINUX: return "POSIX/Linux simulator";
+        default: return "Unknown";
+    }
 }
-// // TODO delete - use - esp_http_client_config_t
-// static void builUrlWithQueryId(char *url, int16_t url_size, char *address, char *path, int64_t id)
-// {
-//     char id_buffer[21];
-//     snprintf(id_buffer, sizeof(id_buffer), "%lld", id);
-//     buildUrl(url, url_size, address, path);
-//     strncat(url, "?id=", url_size - strlen(url) - 1);
-//     strncat(url, id_buffer, url_size - strlen(url) - 1);
-// }
 
-static void getDeviceInfo(cJSON* json)
+static void _GetDeviceInfo(cJSON* json)
 {
     nvs_handle_t handle;
-    nvs_open("storage", NVS_READONLY, &handle);
     int64_t id;
     size_t len;
     char* str;
+
+    nvs_open("storage", NVS_READONLY, &handle);
+
     if (nvs_get_i64(handle, "ModuleId", &id) == ESP_OK){
         cJSON_AddNumberToObject(json, "Id", id);
     }
@@ -98,21 +123,13 @@ static void getDeviceInfo(cJSON* json)
         cJSON_AddStringToObject(json, "ProgramVersion", str);
         free(str);
     }
-
-    cJSON_AddStringToObject(json, "Chip", chip_name);
-    cJSON_AddStringToObject(json, "FirmwareVersion", app_version);
-    cJSON_AddStringToObject(json, "IDFVersion", idf_version);
+    nvs_close(handle);
+    const esp_app_desc_t *desc = esp_app_get_description();
+    cJSON_AddStringToObject(json, "Chip", _GetChipName());
+    cJSON_AddStringToObject(json, "FirmwareVersion", desc->version);
+    cJSON_AddStringToObject(json, "IDFVersion", desc->idf_ver);
     cJSON_AddNumberToObject(json, "FreeHeap", (double)esp_get_free_heap_size());
 
-    //esp_flash_get_size()
-    // uint32_t flash_size;
-    // if (esp_flash_get_physical_size(NULL, &flash_size) != ESP_OK) {
-    //     ESP_LOGE(TAG, "Get flash size failed");
-    //     cJSON_AddNullToObject(json_to_send, "FlashSize");
-    // }
-    // else {
-    //     cJSON_AddNumberToObject(json_to_send, "FlashSize", flash_size);
-    // }
     str = wifiGetSTASsid();
     if(str != NULL){
         cJSON_AddStringToObject(json, "WifiCurrent", str);
@@ -123,28 +140,9 @@ static void getDeviceInfo(cJSON* json)
     //     cJSON_AddStringToObject(json, "WifiInRange", str);
     //     free(str);
     // }
-    // nvs_close(handle);
 }
 
-static const char* _get_chip_name() 
-{
-    esp_chip_info_t chip_info;
-    esp_chip_info(&chip_info);
-    switch (chip_info.model) {
-        case CHIP_ESP32: return "ESP32";
-        case CHIP_ESP32S2: return "ESP32-S2";
-        case CHIP_ESP32S3: return "ESP32-S3";
-        case CHIP_ESP32C3: return "ESP32-C3";
-        case CHIP_ESP32C2: return "ESP32-C2";
-        case CHIP_ESP32C6: return "ESP32-C6";
-        case CHIP_ESP32H2: return "ESP32-H2";
-        case CHIP_ESP32P4: return "ESP32-P4";
-        case CHIP_POSIX_LINUX: return "POSIX/Linux simulator";
-        default: return "Unknown";
-    }
-}
-
-static void _processActions(cJSON *json_actions, server_comm_action_t* actions)
+static void _ProcessActions(cJSON *json_actions, server_comm_action_t* actions)
 {
     cJSON *item = NULL;
     cJSON_ArrayForEach(item, json_actions){
@@ -167,23 +165,40 @@ static void _processActions(cJSON *json_actions, server_comm_action_t* actions)
     }
 }
 
-static void _loadMessages(cJSON* json_messages, message_comm_struct_t* callbacks)
+static void _LoadMessages(cJSON* json_messages, message_comm_struct_t* messages)
 {
-    message_comm_struct_t* current_callback = callbacks;
-    cJSON* callback_result = NULL;
-    while(current_callback != NULL)
+    message_comm_struct_t* current_message = messages;
+    while(current_message != NULL)
     {
-        callback_result = current_callback->callback();
-        cJSON_AddItemToObject(json_messages, current_callback->key, callback_result);
-        current_callback = current_callback->next;
+        switch (current_message->type)
+        {
+            case COMM_CALLBACK_STR:
+                char* str = current_message->callback.returStr_f();
+                cJSON_AddStringToObject(json_messages, current_message->key, str);
+                break;
+            case COMM_CALLBACK_I32:
+                double int32 = current_message->callback.returnI32_f();
+                cJSON_AddNumberToObject(json_messages, current_message->key, (double) int32);
+                break;
+            case COMM_CALLBACK_BOOL:
+                bool boolean = current_message->callback.returStr_f();
+                cJSON_AddBoolToObject(json_messages, current_message->key, boolean);
+                break;
+            case COMM_CALLBACK_CJSON:
+                cJSON* cJson = current_message->callback.returnCjson_f();
+                cJSON_AddItemToObject(json_messages, current_message->key, cJson);
+                break;
+        }
+        current_message = current_message->next;
     }
 }
 
 // TODO add security to headers - https://github.com/espressif/esp-idf/issues/3097
-static void _mainLoop()
+static void _MainLoop()
 {
-    http_response_t *actions_response = httpCreateResponse();
-    char str[12];
+    http_response_t *actions_response = http_CreateResponse();
+    char url[120];
+
     while(true)
     {
         while (!wifiIsSTAConnected())
@@ -191,38 +206,32 @@ static void _mainLoop()
             //ESP_LOGI(TAG ,"Waiting to wifi connection");
             vTaskDelay(1 * 1000 / portTICK_PERIOD_MS);
         }
-        int64_t id;
-        char server_url[100];
-        nvs_handle_t handle;
-        nvs_open("storage", NVS_READONLY, &handle);
-        if (nvs_get_i64(handle, "ModuleId", &id)){
-            id = 0;
-        }
-        nvs_close(handle);
 
-        buildUrl(server_url, 100, server_address, "api/modules");
-        getDeviceInfo(_json_to_send);
+        _GetDeviceInfo(_json_to_send);
 
-        _loadMessages(_json_to_send, _messages);
-        sprintf(str, "%lu", esp_random());
-        cJSON_AddStringToObject(_json_to_send, "test", str);
-        sprintf(str, "%lu", esp_random());
-        cJSON_AddStringToObject(_json_to_send, "test2", str);
+        _LoadMessages(_json_to_send, _messages);
 
-        httpPostJson(server_url, _json_to_send, actions_response);
+        // sprintf(str, "%lu", esp_random());
+        // cJSON_AddStringToObject(_json_to_send, "test", str);
+        // sprintf(str, "%lu", esp_random());
+        // cJSON_AddStringToObject(_json_to_send, "test2", str);
+
+        http_BuildUrl(true, _server_host, 0, "/api/modules", NULL, url, sizeof(url));
+        ESP_LOGI(TAG ,"URL: %s", url);
+        http_PostJson(url, _json_to_send, actions_response);
 
         //builUrlWithQueryId(server_url, 100, server_address, "/api/actions", id);
         //httpGetJson(server_url, actions_response);
 
         if (actions_response->status == 200){
             ESP_LOGI(TAG ,"Response OK, processing actions...");
-            _processActions(actions_response->json, _actions);
+            _ProcessActions(actions_response->json, _actions);
         }
         else{
             ESP_LOGI(TAG ,"Error, get actions, status code: %ld", actions_response->status);
         }
 
-        httpCleanResponse(actions_response);
+        http_CleanResponse(actions_response);
         cJSON_Delete(_json_to_send);
         _json_to_send = cJSON_CreateObject();
 
@@ -231,22 +240,28 @@ static void _mainLoop()
     vTaskDelete(NULL);
 }
 
-static void _performOTA(char* programName)
+static void _PerformOTA(char* programName)
 {
     if(wifiIsSTAConnected())
     {
         char query[50];
+        nvs_handle_t handle;
+        nvs_open("storage", NVS_READWRITE, &handle);
+        nvs_set_str(handle, "_ProgramName", programName);
+        nvs_commit(handle);
+        nvs_close(handle);
+
         snprintf(query, sizeof(query), "program=%s", programName);
 
-        ESP_LOGI(TAG, "Starting OTA");
+        ESP_LOGI(TAG, "Starting OTA, program: %s", programName);
         esp_http_client_config_t config = 
         {
-            .host = server_host,
-            .port = server_port,
+            .host = _server_host,
+            //.port = _server_port,
             .path = "/api/firmware",
             .query = query,
             .keep_alive_enable = true,
-            .cert_pem = NULL,
+            .crt_bundle_attach = esp_crt_bundle_attach,
         };
 
         esp_https_ota_config_t ota_config = {
@@ -257,11 +272,6 @@ static void _performOTA(char* programName)
         esp_err_t ret = esp_https_ota(&ota_config);
         if (ret == ESP_OK)
         {
-            nvs_handle_t handle;
-            nvs_open("storage", NVS_READWRITE, &handle);
-            nvs_set_str(handle, "_ProgramName", programName);
-            nvs_commit(handle);
-            nvs_close(handle);
             ESP_LOGI(TAG, "OTA Succeed, Rebooting...");
             esp_restart();
         } 
@@ -274,7 +284,7 @@ static void _performOTA(char* programName)
     ESP_LOGE(TAG, "Firmware upgrade failed, no internet connection");
 }
 
-static void _setModuleName(char *newName)
+static void _SetModuleName(char *newName)
 {
     ESP_LOGI(TAG ,"set module name to: %s",newName);
     nvs_handle_t handle;
@@ -282,10 +292,9 @@ static void _setModuleName(char *newName)
     nvs_set_str(handle, "ModuleName", newName);
     nvs_commit(handle);
     nvs_close(handle);
-
 }
 
-static void _setModuleKey(char *newKey)
+static void _SetModuleKey(char *newKey)
 {
     ESP_LOGI(TAG ,"set module key to: %s",newKey);
     nvs_handle_t handle;
@@ -293,10 +302,9 @@ static void _setModuleKey(char *newKey)
     nvs_set_str(handle, "ModuleKey", newKey);
     nvs_commit(handle);
     nvs_close(handle);
-
 }
 
-static void _setModuleId(char *newId)
+static void _SetModuleId(char *newId)
 {
     ESP_LOGI(TAG ,"set module id to: %s",newId);
     nvs_handle_t handle;
@@ -316,7 +324,7 @@ static void defaultCallback(char* str){
     ESP_LOGI(TAG ,"callback with arg: %s", str);
 }
 
-static server_comm_action_t* _creteAction(char* key, serverCommCallback callback)
+static server_comm_action_t* _CreteAction(char* key, serverCommCallback callback)
 {
     server_comm_action_t *action = (server_comm_action_t*)calloc(1, sizeof(server_comm_action_t));
     uint16_t len = strlen(key) + 1;
@@ -327,13 +335,13 @@ static server_comm_action_t* _creteAction(char* key, serverCommCallback callback
     return action;
 }
 
-void commAddAction(char* name, serverCommCallback callback)
+void comm_AddAction(char* name, serverCommCallback callback)
 {
     server_comm_action_t *current_action = _actions;
     server_comm_action_t *prew_action = NULL;
 
     if (_actions == NULL){
-        _actions = _creteAction(name, callback);
+        _actions = _CreteAction(name, callback);
     }
     else
     {
@@ -347,12 +355,12 @@ void commAddAction(char* name, serverCommCallback callback)
             prew_action = current_action;
             current_action = current_action->next;
         }
-        prew_action->next = _creteAction(name, callback);
+        prew_action->next = _CreteAction(name, callback);
     }
 }
 
 
-void commDeleteAction(char* name, serverCommCallback callback)
+void comm_DeleteAction(char* name, serverCommCallback callback)
 {
     server_comm_action_t *prew_action = NULL;
     server_comm_action_t *current_action = _actions;
@@ -376,7 +384,7 @@ void commDeleteAction(char* name, serverCommCallback callback)
     }
 }
 
-void commAddMessage(char* key, char* value)
+void comm_PushMessage(char* key, char* value)
 {
     cJSON *existing_item = cJSON_GetObjectItem(_json_to_send, key);
     if (existing_item == NULL)
@@ -385,71 +393,108 @@ void commAddMessage(char* key, char* value)
     }
 }
 
-static message_comm_struct_t* _createMessage(char* key, messageCommCallback callback)
+static message_comm_struct_t* _CreateMessage(char* key)
 {
     message_comm_struct_t* message = (message_comm_struct_t*)calloc(1, sizeof(message_comm_struct_t));
     uint16_t len = strlen(key) + 1;
     message->key = (char*)malloc(len);
     strlcpy(message->key, key, len);
-    message->callback = callback;
     message->next = NULL;
     return message;
-} 
+}
 
-void commAddMessgeCallback(char* key, messageCommCallback callback)
+static message_comm_struct_t* _AddMessage(char* key)
 {
-    message_comm_struct_t* current_message = _messages;
-    message_comm_struct_t* prew_message = NULL;
-
-    if (_messages == NULL){
-        _messages = _createMessage(key, callback);
+    if (_messages == NULL)
+    {
+        _messages = _CreateMessage(key);
+        return _messages;
     }
     else
     {
+        message_comm_struct_t* current_message = _messages;
+        message_comm_struct_t* prew_message = NULL;
         while(current_message != NULL)
         {
-            if(strcmp(current_message->key, key) == 0 && current_message->callback == callback)
+            if(!strcmp(current_message->key, key))
             {
-                ESP_LOGI(TAG ,"action name: %s, with callback: %p, already exist", key, callback);
-                return;
+                ESP_LOGI(TAG ,"message with: key %s, already exist", key);
+                return NULL;
             }
             prew_message = current_message;
             current_message = current_message->next;
         }
-        prew_message->next = _createMessage(key, callback);
+        current_message = _CreateMessage(key);
+        prew_message->next = current_message;
+        return current_message;
     }
 }
 
-static void _init()
+void comm_AddMessageStr(char* key, char*(*callback)())
+{
+    message_comm_struct_t* message = _AddMessage(key);
+    if(message != NULL)
+    {
+        message->type = COMM_CALLBACK_STR;
+        message->callback.returStr_f = callback;
+    }
+}
+
+void comm_AddMessageI32(char* key, int32_t(*callback)())
+{
+    message_comm_struct_t* message = _AddMessage(key);
+    if(message != NULL)
+    {
+        message->type = COMM_CALLBACK_I32;
+        message->callback.returnI32_f = callback;
+    }
+}
+
+void comm_AddMessageBool(char* key, bool(*callback)())
+{
+    message_comm_struct_t* message = _AddMessage(key);
+    if(message != NULL)
+    {
+        message->type = COMM_CALLBACK_BOOL;
+        message->callback.returnBool_f = callback;
+    }
+}
+
+void comm_AddMessageCjson(char* key, cJSON*(*callback)())
+{
+    message_comm_struct_t* message = _AddMessage(key);
+    if(message != NULL)
+    {
+        message->type = COMM_CALLBACK_CJSON;
+        message->callback.returnCjson_f = callback;
+    }
+}
+
+static void _Init()
 { 
-    commAddAction("Default", defaultCallback);
-    commAddAction("PerformOTA", _performOTA);
-    commAddAction("SetModuleId", _setModuleId);
-    commAddAction("SetModuleName", _setModuleName);
-    commAddAction("SetModuleKey", _setModuleKey);
+    comm_AddAction("Default", defaultCallback);
+    comm_AddAction("PerformOTA", _PerformOTA);
+    comm_AddAction("SetModuleId", _SetModuleId);
+    comm_AddAction("SetModuleName", _SetModuleName);
+    comm_AddAction("SetModuleKey", _SetModuleKey);
 
     _json_to_send = cJSON_CreateObject();
 
-    const esp_app_desc_t *desc = esp_app_get_description();
-    chip_name = _get_chip_name();
-    app_version = desc->version;
-    idf_version = desc->idf_ver;
-
-    xTaskCreate(_mainLoop, "server_comm", 4096, NULL, tskIDLE_PRIORITY, &server_comm_task);
+    xTaskCreate(_MainLoop, "server_comm", 4096, NULL, tskIDLE_PRIORITY, &server_comm_task);
     is_initialized = true;
 }
 
-void commStart()
+void comm_Start()
 {
     if(is_initialized){
         vTaskResume(server_comm_task);
     }
     else {
-        _init();
+        _Init();
     }
 }
 
-void commStop()
+void comm_Stop()
 {
     vTaskSuspend(server_comm_task);
 }

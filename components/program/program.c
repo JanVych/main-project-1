@@ -9,22 +9,41 @@
 
 static const char *TAG = "secondary";
 
+int32_t _someNumber = 0;
+
+char* _randomString = "custom string";
+
 static void defaultCallback(char* str){
     ESP_LOGI(TAG ,"callback with arg: %s", str);
 }
 
-void log_actions()
+char* ProgramStrMessage()
+{
+    return "program message 1";
+}
+
+int32_t ProgramSomeNumberMessage()
+{
+    return _someNumber;
+}
+
+void LogActions()
 {
     ESP_LOGI(TAG, "free memory: %i", (int)esp_get_free_heap_size());
 }
 
-void program()
+void Program()
 {
+
     // eta_err_t result;
     // uint8_t value = 0;
     // char valueString[40];
     // char room[] = "room_";
-    commAddAction("test-program", defaultCallback);
+    comm_AddAction("test-program", defaultCallback);
+
+    comm_AddMessageStr("program_message", ProgramStrMessage);
+    comm_AddMessageI32("some_number", ProgramSomeNumberMessage);
+
     // result = eta_Init(UART_NUM_2, 17, 16);
     // ESP_LOGI(TAG, "uart init: %d", result);
     // uint8_t room = 2;
@@ -32,7 +51,10 @@ void program()
     while(true)
     {
         vTaskDelay(10000 / portTICK_PERIOD_MS);
-        log_actions();
+        LogActions();
+
+        comm_PushMessage("program_interval_message", _randomString);
+        _someNumber++;
         // ESP_LOGI(TAG, "rooms scan started");
 
         // for(int i = 0; i < 10; i++)

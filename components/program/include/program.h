@@ -1,1 +1,1 @@
-void program();
+void Program();

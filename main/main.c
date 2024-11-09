@@ -14,7 +14,6 @@
 #include "wifi.h"
 #include "http_client.h"
 #include "server_comm.h"
-//#include "etatherm.h"
 
 #define LED_GPIO 2
 
@@ -35,7 +34,7 @@ static void _blinkLed(void)
 
 static void _programStart()
 {
-    xTaskCreate( program, "program", 20480, NULL, tskIDLE_PRIORITY, &program_task );
+    xTaskCreate( Program, "program", 20480, NULL, tskIDLE_PRIORITY, &program_task );
 }
 
 static void _check_app()
@@ -43,21 +42,23 @@ static void _check_app()
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t ota_state;
     nvs_handle handle;
+    esp_err_t result = esp_ota_get_state_partition(running, &ota_state);
     // get state of current running partition
-    if (esp_ota_get_state_partition(running, &ota_state) == ESP_OK) 
+    if (result == ESP_OK) 
     {
-        // first boot of this partition after OTA
+        ESP_LOGI(TAG, "current running parttition: %s, in state state: %u", running->label, ota_state);
+        // if it is first boot of this partition (after OTA)
         if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) 
         {
-            ///////////// !!!
+            ///////////// !!! TODO
             bool is_ok = true;
             if (is_ok) 
             {
                 ESP_LOGI(TAG, "Diagnostics completed successfully");
                 // confirm and set new program name
-                nvs_open("storage", NVS_READONLY, &handle);
-                uint32_t len;
-                if (nvs_get_str(handle,"ProgramName", NULL, &len) == ESP_OK){
+                nvs_open("storage", NVS_READWRITE, &handle);
+                size_t len;
+                if (nvs_get_str(handle,"_ProgramName", NULL, &len) == ESP_OK){
                     char* str = malloc(len);
                     nvs_get_str(handle, "_ProgramName", str, &len);
                     nvs_set_str(handle, "ProgramName", str);
@@ -75,7 +76,7 @@ static void _check_app()
     }
 }
 
-static void _init()
+static void _Init()
 {
     //initialize NVS
     esp_err_t ret = nvs_flash_init();
@@ -89,13 +90,13 @@ static void _init()
 
 void app_main(void)
 {
-    _init();
+    _Init();
 
     _check_app();
 
     wifiSTAConnect(wifi_ssid, wifi_password);
 
-    commStart();
+    comm_Start();
     //commStop();
 
     _programStart();

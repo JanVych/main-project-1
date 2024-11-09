@@ -8,7 +8,7 @@
 
 #include "etatherm.h"
 
-// TODO macro for results: ESP_RETURN_ON_ERROR
+// TODO macro or something for results: ESP_RETURN_ON_ERROR
 
 /** 
  * master -> slave communication (program -> etatherm controller),

@@ -12,7 +12,7 @@ typedef enum
 	ETA_ERR_UART_FLUSH,
 	ETA_ERR_UART_WRITE,
 	ETA_ERR_UART_READ
-}eta_err_t;
+} eta_err_t;
 
 eta_err_t eta_GetRealTemp(uint16_t station, uint8_t device, uint8_t* out_value);
 eta_err_t eta_GetDesiredTemp(uint16_t station, uint8_t device, uint8_t* out_value);
