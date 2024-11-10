@@ -22,8 +22,10 @@ static uint8_t s_led_state = 1;
 
 static TaskHandle_t program_task;
 
-static char *wifi_ssid = "TP-Link-29";
-static char *wifi_password = "***REMOVED***";
+// static char *wifi_ssid = "TP-Link-29";
+// static char *wifi_password = "***REMOVED***";
+static char *wifi_ssid = "Krepenec";
+static char *wifi_password = "y4HJkldvf5erkl";
 
 
 static void _blinkLed(void)

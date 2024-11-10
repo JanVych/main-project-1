@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <cJSON.h>
 #include "program.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
@@ -7,24 +8,26 @@
 #include "server_comm.h"
 #include "etatherm.h"
 
-static const char *TAG = "secondary";
+static const char *TAG = "program";
 
-int32_t _someNumber = 0;
+static uint8_t _roomsTemp[16];
 
-char* _randomString = "custom string";
+int32_t _counter = 0;
 
-static void defaultCallback(char* str){
-    ESP_LOGI(TAG ,"callback with arg: %s", str);
-}
+// char* _randomString = "custom string";
 
-char* ProgramStrMessage()
+// static void defaultCallback(char* str){
+//     ESP_LOGI(TAG ,"callback with arg: %s", str);
+// }
+
+// char* ProgramStrMessage()
+// {
+//     return "program message 1";
+// }
+
+int32_t ProgramCounter()
 {
-    return "program message 1";
-}
-
-int32_t ProgramSomeNumberMessage()
-{
-    return _someNumber;
+    return _counter;
 }
 
 void LogActions()
@@ -32,47 +35,62 @@ void LogActions()
     ESP_LOGI(TAG, "free memory: %i", (int)esp_get_free_heap_size());
 }
 
+cJSON* GetRoomsTemp()
+{
+    cJSON* array = cJSON_CreateArray();
+    cJSON* item;
+    for(int i = 0; i < 16; i++)
+    {
+        item = cJSON_CreateNumber((double) _roomsTemp[i]);
+        cJSON_AddItemToArray(array, item);
+    }
+    return array;
+}
+
+// void SetRoomTemp()
+// {
+
+// }
+
 void Program()
 {
+    eta_err_t result;
+    uint8_t value = 0;
+    //char valueString[40];
+    //char room[] = "room_";
+    // comm_AddAction("test-program", defaultCallback);
 
-    // eta_err_t result;
-    // uint8_t value = 0;
-    // char valueString[40];
-    // char room[] = "room_";
-    comm_AddAction("test-program", defaultCallback);
+    // comm_AddMessageStr("program_message", ProgramStrMessage);
+    comm_AddMessageI32("ProgramCounter", ProgramCounter);
+    comm_AddMessageCjson("RoomsTemperature", GetRoomsTemp);
+    vTaskDelay(15000 / portTICK_PERIOD_MS);
 
-    comm_AddMessageStr("program_message", ProgramStrMessage);
-    comm_AddMessageI32("some_number", ProgramSomeNumberMessage);
 
-    // result = eta_Init(UART_NUM_2, 17, 16);
-    // ESP_LOGI(TAG, "uart init: %d", result);
+    result = eta_Init(UART_NUM_2, 17, 16);
+    ESP_LOGI(TAG, "uart init: %d", result);
     // uint8_t room = 2;
     // uint8_t setval = 14;
     while(true)
     {
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
-        LogActions();
+        // vTaskDelay(10000 / portTICK_PERIOD_MS);
+        // LogActions();
+        // comm_PushMessage("program_interval_message", _randomString);
+        // _someNumber++;
 
-        comm_PushMessage("program_interval_message", _randomString);
-        _someNumber++;
-        // ESP_LOGI(TAG, "rooms scan started");
+        ESP_LOGI(TAG, "rooms scan started");
 
-        // for(int i = 0; i < 10; i++)
-        // {
-        //     room[4] = i + 48;
-        //     result = eta_GetRealTemp(1, i, &value);
-        //     ESP_LOGI(TAG, "real temp result: %d, room: %u, value: %u", result, i, value);
-        //     if(!result){
-        //         sprintf(valueString, "%d", value);
-        //         commAddMessage(room, valueString);
-        //     }
-        //     else{
-        //         sprintf(valueString, "error: %d", result);
-        //         commAddMessage(room, valueString);
-        //     }
-        // }
-        // ESP_LOGI(TAG, "rooms scan ended");
-        //result = eta_GetRealTemp(1, room, &value);
+        for(int i = 0; i < 16; i++)
+        {
+            result = eta_GetRealTemp(1, i, &value);
+            ESP_LOGI(TAG, "real temp result: %d, room: %d, value: %u", result, i, value);
+            if(!result){
+                _roomsTemp[i] = value;
+            }
+        }
+        ESP_LOGI(TAG, "rooms scan ended");
+
+
+        // result = eta_GetRealTemp(1, room, &value);
         // ESP_LOGI(TAG, "real temp result: %d, room: %u, value: %u", result, room, value);
         // result = eta_GetDesiredTemp(1, room, &value);
         // ESP_LOGI(TAG, "desired temp result: %d, room: %u, value: %u", result, room, value);
@@ -85,7 +103,7 @@ void Program()
         // result = eta_GetTempShift(1, 0, &value);
         // ESP_LOGI(TAG, "type value: %d, room: %u, value: %u", result, room, value);
 
-
-        // vTaskDelay(20000 / portTICK_PERIOD_MS);
+        _counter++;
+        vTaskDelay(100000 / portTICK_PERIOD_MS);
     }
 }

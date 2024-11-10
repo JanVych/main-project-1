@@ -48,9 +48,9 @@
 
 // Communication constatants
 //
-#define ETA_FRAME_TIMEOUT_MIL 4000
-#define ETA_BYTE_TIMEOUT_MIL 200
-#define ETA_RETRY 1
+#define ETA_FRAME_TIMEOUT_MIL 2000
+#define ETA_BYTE_TIMEOUT_MIL 100
+#define ETA_RETRY 2
  
  //
 static uart_port_t eta_uart_port;

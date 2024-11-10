@@ -74,7 +74,6 @@ esp_err_t http_BuildUrl(bool tls_ssl, const char *host, uint16_t port, const cha
     if (len >= max_len) {
         return ESP_ERR_NO_MEM;
     }
-
     return ESP_OK;
 }
 
@@ -129,8 +128,8 @@ static void _httpSend(char* url, esp_http_client_method_t method, http_response_
         esp_http_client_set_header(client, "Accept", data_type);
     }
 
-    esp_http_client_get_url(client, url, sizeof(url));
-    ESP_LOGI(TAG, "http method: %i, url: %s", method, url);
+    // esp_http_client_get_url(client, url, sizeof(url));
+    // ESP_LOGI(TAG, "http method: %i, url: %s", method, url);
 
     esp_err_t result = esp_http_client_perform(client);
     if(response != NULL){

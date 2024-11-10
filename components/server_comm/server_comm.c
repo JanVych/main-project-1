@@ -20,9 +20,10 @@ static const char *TAG = "server_comm";
 //static char* _server_address = "https://krepenec.streamsupporter.xyz/";
 //static char* _server_host = "192.168.0.108";
 static char* _server_host = "krepenec.streamsupporter.xyz";
+//static char* _server_host = "192.168.0.114";
 //static uint32_t _server_port = 45455;
 
-static uint32_t comm_interval_sec = 60;
+static uint32_t comm_interval_sec = 120;
 static TaskHandle_t server_comm_task;
 static bool is_initialized = false;
 static cJSON* _json_to_send;
@@ -228,7 +229,7 @@ static void _MainLoop()
             _ProcessActions(actions_response->json, _actions);
         }
         else{
-            ESP_LOGI(TAG ,"Error, get actions, status code: %ld", actions_response->status);
+            ESP_LOGI(TAG ,"POST to: %s, error, status code: %ld", url, actions_response->status);
         }
 
         http_CleanResponse(actions_response);
