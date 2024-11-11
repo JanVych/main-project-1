@@ -44,12 +44,12 @@ typedef union message_callback_t
     cJSON* (*returnCjson_f)();
 } message_callback_t;
 
-// typedef union{
-//     void (*strCallback)(const char*);
-//     void (*intCallback)(int32_t);
-//     void (*boolCallback)(bool);
-//     void (*jsonCallback)(cJSON*);
-// } action_callback_u;
+typedef union action_callback_u{
+    void (*strCallback)(char*);
+    void (*intCallback)(int32_t);
+    void (*boolCallback)(bool);
+    void (*jsonCallback)(cJSON*);
+} action_callback_u;
 
 typedef struct message_comm_struct_t
 {
@@ -59,11 +59,12 @@ typedef struct message_comm_struct_t
     struct message_comm_struct_t* next;
 } message_comm_struct_t;
 
-typedef void (*serverCommCallback)(char*);
+//typedef void (*serverCommCallback)(char*);
 
 typedef struct server_comm_action_t{
     char *key;
-    serverCommCallback callback;
+    callback_type_t type;
+    action_callback_u callback;
     struct server_comm_action_t *next;
 }server_comm_action_t;
 
@@ -146,16 +147,43 @@ static void _GetDeviceInfo(cJSON* json)
 static void _ProcessActions(cJSON *json_actions, server_comm_action_t* actions)
 {
     cJSON *item = NULL;
-    cJSON_ArrayForEach(item, json_actions){
-        bool found = false;
-        if (cJSON_IsString(item)) {
-            server_comm_action_t * current_action = actions;
+    bool found;
+    server_comm_action_t *current_action;
+    cJSON_ArrayForEach(item, json_actions)
+    {
+        found = false;
+        if (cJSON_IsString(item)) 
+        {
+            current_action = actions;
             while (current_action != NULL) 
             {
                 if(!strcmp(current_action->key, item->string))
                 {
-                    current_action->callback(item->valuestring);
                     found = true;
+                    switch (current_action->type)
+                    {
+                        case COMM_CALLBACK_STR:
+                            if(cJSON_IsString(item))
+                            {
+                                current_action->callback.strCallback(item->valuestring);
+                            }
+                            break;
+                        case COMM_CALLBACK_I32:
+                            if(cJSON_IsNumber(item))
+                            {
+                                current_action->callback.intCallback(item->valueint);
+                            }
+                            break;
+                        case COMM_CALLBACK_BOOL:
+                            if(cJSON_IsBool(item))
+                            {
+                                current_action->callback.boolCallback(cJSON_IsTrue(item));
+                            }
+                            break;
+                        case COMM_CALLBACK_CJSON:
+                            current_action->callback.jsonCallback(item);
+                            break;
+                    }
                 }
                 current_action = current_action->next;
             };
@@ -321,69 +349,101 @@ static void _SetModuleId(char *newId)
     }
 }
 
-static void defaultCallback(char* str){
-    ESP_LOGI(TAG ,"callback with arg: %s", str);
-}
-
-static server_comm_action_t* _CreteAction(char* key, serverCommCallback callback)
+static server_comm_action_t* _CreteAction(char* key)
 {
     server_comm_action_t *action = (server_comm_action_t*)calloc(1, sizeof(server_comm_action_t));
     uint16_t len = strlen(key) + 1;
     action->key = (char*)malloc(len);
     strlcpy(action->key, key, len);
-    action->callback = callback;
     action->next = NULL;
     return action;
 }
+// static server_comm_action_t* _CreteAction(char* key, serverCommCallback callback)
+// {
+//     server_comm_action_t *action = (server_comm_action_t*)calloc(1, sizeof(server_comm_action_t));
+//     uint16_t len = strlen(key) + 1;
+//     action->key = (char*)malloc(len);
+//     strlcpy(action->key, key, len);
+//     action->callback = callback;
+//     action->next = NULL;
+//     return action;
+// }
 
-void comm_AddAction(char* name, serverCommCallback callback)
+server_comm_action_t* _AddAction(char* name)
 {
     server_comm_action_t *current_action = _actions;
     server_comm_action_t *prew_action = NULL;
+    server_comm_action_t* action = _CreteAction(name);
 
     if (_actions == NULL){
-        _actions = _CreteAction(name, callback);
+        _actions = action;
     }
     else
     {
         while(current_action != NULL)
         {
-            if(strcmp(current_action->key, name) == 0 && current_action->callback == callback)
-            {
-                ESP_LOGI(TAG ,"action name: %s, with callback: %p, already exist", name, callback);
-                return;
-            }
             prew_action = current_action;
             current_action = current_action->next;
         }
-        prew_action->next = _CreteAction(name, callback);
+        prew_action->next = action;
     }
+    return action;
 }
 
-
-void comm_DeleteAction(char* name, serverCommCallback callback)
+void comm_AddActionStr(char* name, void(*callback)(char*))
 {
-    server_comm_action_t *prew_action = NULL;
-    server_comm_action_t *current_action = _actions;
-    
-    while(current_action != NULL)
-    {
-        if(strcmp(current_action->key, name) == 0 && current_action->callback == callback)
-        {
-            if(prew_action == NULL){
-                _actions = NULL;
-            }
-            else{
-                prew_action->next = current_action->next;
-            }
-            free(current_action->key);
-            free(current_action);
-            return;
-        }
-        prew_action = current_action;
-        current_action = current_action->next;
-    }
+    server_comm_action_t* action = _AddAction(name);
+    action->callback.strCallback = callback;
+    action->type = COMM_CALLBACK_STR;
+
 }
+// void comm_AddAction(char* name, serverCommCallback callback)
+// {
+//     server_comm_action_t *current_action = _actions;
+//     server_comm_action_t *prew_action = NULL;
+
+//     if (_actions == NULL){
+//         _actions = _CreteAction(name, callback);
+//     }
+//     else
+//     {
+//         while(current_action != NULL)
+//         {
+//             if(strcmp(current_action->key, name) == 0 && current_action->callback == callback)
+//             {
+//                 ESP_LOGI(TAG ,"action name: %s, with callback: %p, already exist", name, callback);
+//                 return;
+//             }
+//             prew_action = current_action;
+//             current_action = current_action->next;
+//         }
+//         prew_action->next = _CreteAction(name, callback);
+//     }
+// }
+
+// void comm_DeleteAction(char* name, serverCommCallback callback)
+// {
+//     server_comm_action_t *prew_action = NULL;
+//     server_comm_action_t *current_action = _actions;
+    
+//     while(current_action != NULL)
+//     {
+//         if(strcmp(current_action->key, name) == 0 && current_action->callback == callback)
+//         {
+//             if(prew_action == NULL){
+//                 _actions = NULL;
+//             }
+//             else{
+//                 prew_action->next = current_action->next;
+//             }
+//             free(current_action->key);
+//             free(current_action);
+//             return;
+//         }
+//         prew_action = current_action;
+//         current_action = current_action->next;
+//     }
+// }
 
 void comm_PushMessage(char* key, char* value)
 {
@@ -473,11 +533,10 @@ void comm_AddMessageCjson(char* key, cJSON*(*callback)())
 
 static void _Init()
 { 
-    comm_AddAction("Default", defaultCallback);
-    comm_AddAction("PerformOTA", _PerformOTA);
-    comm_AddAction("SetModuleId", _SetModuleId);
-    comm_AddAction("SetModuleName", _SetModuleName);
-    comm_AddAction("SetModuleKey", _SetModuleKey);
+    comm_AddActionStr("PerformOTA", _PerformOTA);
+    comm_AddActionStr("SetModuleId", _SetModuleId);
+    comm_AddActionStr("SetModuleName", _SetModuleName);
+    comm_AddActionStr("SetModuleKey", _SetModuleKey);
 
     _json_to_send = cJSON_CreateObject();
 

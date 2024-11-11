@@ -3,9 +3,7 @@
 void comm_Start();
 void comm_Stop();
 
-typedef void (*serverCommCallback)(char*);
-void comm_AddAction(char* name, serverCommCallback callback);
-void comm_DeleteAction(char* name, serverCommCallback callback);
+// void comm_DeleteAction(char* name, serverCommCallback callback);
 
 void comm_PushMessage(char* key, char* value);
 

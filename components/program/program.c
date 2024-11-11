@@ -14,17 +14,6 @@ static uint8_t _roomsTemp[16];
 
 int32_t _counter = 0;
 
-// char* _randomString = "custom string";
-
-// static void defaultCallback(char* str){
-//     ESP_LOGI(TAG ,"callback with arg: %s", str);
-// }
-
-// char* ProgramStrMessage()
-// {
-//     return "program message 1";
-// }
-
 int32_t ProgramCounter()
 {
     return _counter;
@@ -56,11 +45,7 @@ void Program()
 {
     eta_err_t result;
     uint8_t value = 0;
-    //char valueString[40];
-    //char room[] = "room_";
-    // comm_AddAction("test-program", defaultCallback);
 
-    // comm_AddMessageStr("program_message", ProgramStrMessage);
     comm_AddMessageI32("ProgramCounter", ProgramCounter);
     comm_AddMessageCjson("RoomsTemperature", GetRoomsTemp);
     vTaskDelay(15000 / portTICK_PERIOD_MS);
@@ -72,7 +57,6 @@ void Program()
     // uint8_t setval = 14;
     while(true)
     {
-        // vTaskDelay(10000 / portTICK_PERIOD_MS);
         // LogActions();
         // comm_PushMessage("program_interval_message", _randomString);
         // _someNumber++;
