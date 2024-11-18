@@ -45,10 +45,10 @@ typedef union message_callback_t
 } message_callback_t;
 
 typedef union action_callback_u{
-    void (*strCallback)(char*);
-    void (*intCallback)(int32_t);
-    void (*boolCallback)(bool);
-    void (*jsonCallback)(cJSON*);
+    void (*strCallback_f)(char*);
+    void (*intCallback_f)(int32_t);
+    void (*boolCallback_f)(bool);
+    void (*jsonCallback_f)(cJSON*);
 } action_callback_u;
 
 typedef struct message_comm_struct_t
@@ -151,10 +151,9 @@ static void _ProcessActions(cJSON *json_actions, server_comm_action_t* actions)
     server_comm_action_t *current_action;
     cJSON_ArrayForEach(item, json_actions)
     {
+        ESP_LOGI(TAG ,"action: %s",item->string);
         found = false;
-        if (cJSON_IsString(item)) 
-        {
-            current_action = actions;
+        current_action = actions;
             while (current_action != NULL) 
             {
                 if(!strcmp(current_action->key, item->string))
@@ -165,23 +164,23 @@ static void _ProcessActions(cJSON *json_actions, server_comm_action_t* actions)
                         case COMM_CALLBACK_STR:
                             if(cJSON_IsString(item))
                             {
-                                current_action->callback.strCallback(item->valuestring);
+                                current_action->callback.strCallback_f(item->valuestring);
                             }
                             break;
                         case COMM_CALLBACK_I32:
                             if(cJSON_IsNumber(item))
                             {
-                                current_action->callback.intCallback(item->valueint);
+                                current_action->callback.intCallback_f(item->valueint);
                             }
                             break;
                         case COMM_CALLBACK_BOOL:
                             if(cJSON_IsBool(item))
                             {
-                                current_action->callback.boolCallback(cJSON_IsTrue(item));
+                                current_action->callback.boolCallback_f(cJSON_IsTrue(item));
                             }
                             break;
                         case COMM_CALLBACK_CJSON:
-                            current_action->callback.jsonCallback(item);
+                            current_action->callback.jsonCallback_f(item);
                             break;
                     }
                 }
@@ -190,7 +189,6 @@ static void _ProcessActions(cJSON *json_actions, server_comm_action_t* actions)
             if(!found){
                 ESP_LOGI(TAG ,"callback not registrated,name: %s, arg: %s",item->string ,item->valuestring);
             }
-        }
     }
 }
 
@@ -393,10 +391,31 @@ server_comm_action_t* _AddAction(char* name)
 void comm_AddActionStr(char* name, void(*callback)(char*))
 {
     server_comm_action_t* action = _AddAction(name);
-    action->callback.strCallback = callback;
+    action->callback.strCallback_f = callback;
     action->type = COMM_CALLBACK_STR;
-
 }
+
+void comm_AddActionInt32(char* name, void(*callback)(int32_t))
+{
+    server_comm_action_t* action = _AddAction(name);
+    action->callback.intCallback_f = callback;
+    action->type = COMM_CALLBACK_I32;
+}
+
+void comm_AddActionBool(char* name, void(*callback)(bool))
+{
+    server_comm_action_t* action = _AddAction(name);
+    action->callback.boolCallback_f = callback;
+    action->type = COMM_CALLBACK_BOOL;
+}
+
+void comm_AddActionJson(char* name, void(*callback)(cJSON*))
+{
+    server_comm_action_t* action = _AddAction(name);
+    action->callback.jsonCallback_f = callback;
+    action->type = COMM_CALLBACK_CJSON;
+}
+
 // void comm_AddAction(char* name, serverCommCallback callback)
 // {
 //     server_comm_action_t *current_action = _actions;

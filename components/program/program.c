@@ -41,13 +41,72 @@ cJSON* GetRoomsTemp()
 
 // }
 
+void PrintString(char* str)
+{
+    ESP_LOGI(TAG, "STR: %s", str);
+}
+
+void PrintInt(int32_t value)
+{
+    ESP_LOGI(TAG, "INT: %li", value);
+}
+
+void PrintBool(bool value)
+{
+    ESP_LOGI(TAG, "BOOL: %i", value);
+}
+
+void PrintJson(cJSON* json)
+{
+    char* str = cJSON_Print(json);
+    ESP_LOGI(TAG, "JSON: %s", str);
+    free(str);
+}
+
+char* SendString()
+{
+    return "Hello from program";
+}
+
+int32_t SendInt()
+{
+    return 123;
+}
+
+bool SendBool()
+{
+    return true;
+}
+
+cJSON* SendJson()
+{
+    cJSON* array = cJSON_CreateArray();
+    cJSON* item;
+    for(int i = 0; i < 16; i++)
+    {
+        item = cJSON_CreateNumber(i);
+        cJSON_AddItemToArray(array, item);
+    }
+    return array;
+}
+
 void Program()
 {
     eta_err_t result;
-    uint8_t value = 0;
+    //uint8_t value = 0;
+
+    comm_AddActionStr("print_string", PrintString);
+    comm_AddActionInt32("print_int", PrintInt);
+    comm_AddActionBool("print_bool", PrintBool);
+    comm_AddActionJson("print_json", PrintJson);
+
+    comm_AddMessageStr("send_string", SendString);
+    comm_AddMessageI32("send_int", SendInt);
+    comm_AddMessageBool("send_bool", SendBool);
+    comm_AddMessageCjson("send_json", SendJson);
 
     comm_AddMessageI32("ProgramCounter", ProgramCounter);
-    comm_AddMessageCjson("RoomsTemperature", GetRoomsTemp);
+    // comm_AddMessageCjson("RoomsTemperature", GetRoomsTemp);
     vTaskDelay(15000 / portTICK_PERIOD_MS);
 
 
@@ -61,17 +120,17 @@ void Program()
         // comm_PushMessage("program_interval_message", _randomString);
         // _someNumber++;
 
-        ESP_LOGI(TAG, "rooms scan started");
+        // ESP_LOGI(TAG, "rooms scan started");
 
-        for(int i = 0; i < 16; i++)
-        {
-            result = eta_GetRealTemp(1, i, &value);
-            ESP_LOGI(TAG, "real temp result: %d, room: %d, value: %u", result, i, value);
-            if(!result){
-                _roomsTemp[i] = value;
-            }
-        }
-        ESP_LOGI(TAG, "rooms scan ended");
+        // for(int i = 0; i < 16; i++)
+        // {
+        //     result = eta_GetRealTemp(1, i, &value);
+        //     ESP_LOGI(TAG, "real temp result: %d, room: %d, value: %u", result, i, value);
+        //     if(!result){
+        //         _roomsTemp[i] = value;
+        //     }
+        // }
+        // ESP_LOGI(TAG, "rooms scan ended");
 
 
         // result = eta_GetRealTemp(1, room, &value);
