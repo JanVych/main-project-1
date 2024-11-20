@@ -20,7 +20,8 @@
 static const char *TAG = "main";
 static uint8_t s_led_state = 1;
 
-static TaskHandle_t program_task;
+static TaskHandle_t _programTask = NULL;
+static bool _isProgramRunning = false;
 
 static char *wifi_ssid = "TP-Link-29";
 static char *wifi_password = "***REMOVED***";
@@ -34,16 +35,46 @@ static void _blinkLed(void)
     gpio_set_level(LED_GPIO, s_led_state);
 }
 
-static void _programStart()
+bool _CheckAppState()
 {
-    xTaskCreate( Program, "program", 20480, NULL, tskIDLE_PRIORITY, &program_task );
+    return true;
 }
 
-static void _check_app()
+static void _RunCheck()
+{
+    nvs_handle handle;
+    uint32_t waitTime = comm_GetIntervalSec() + 120;
+    vTaskDelay(waitTime * 1000 / portTICK_PERIOD_MS);
+    if (_CheckAppState()) 
+    {
+        ESP_LOGI(TAG, "Diagnostics completed successfully");
+        // confirm and set new program name
+        nvs_open("storage", NVS_READWRITE, &handle);
+        size_t len;
+        if (nvs_get_str(handle,"_ProgramName", NULL, &len) == ESP_OK)
+        {
+            char* str = malloc(len);
+            nvs_get_str(handle, "_ProgramName", str, &len);
+            nvs_set_str(handle, "ProgramName", str);
+            nvs_commit(handle);
+            free(str);
+            nvs_close(handle);
+        }
+        esp_ota_mark_app_valid_cancel_rollback();
+    }
+    else 
+    {
+        ESP_LOGE(TAG, "Diagnostics failed! Start rollback to the previous version");
+        esp_ota_mark_app_invalid_rollback_and_reboot();
+    }
+    vTaskDelete(NULL);
+}
+
+static void _CheckApp()
 {
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t ota_state;
-    nvs_handle handle;
+    
     esp_err_t result = esp_ota_get_state_partition(running, &ota_state);
     // get state of current running partition
     if (result == ESP_OK) 
@@ -52,28 +83,7 @@ static void _check_app()
         // if it is first boot of this partition (after OTA)
         if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) 
         {
-            ///////////// !!! TODO
-            bool is_ok = true;
-            if (is_ok) 
-            {
-                ESP_LOGI(TAG, "Diagnostics completed successfully");
-                // confirm and set new program name
-                nvs_open("storage", NVS_READWRITE, &handle);
-                size_t len;
-                if (nvs_get_str(handle,"_ProgramName", NULL, &len) == ESP_OK){
-                    char* str = malloc(len);
-                    nvs_get_str(handle, "_ProgramName", str, &len);
-                    nvs_set_str(handle, "ProgramName", str);
-                    nvs_commit(handle);
-                    free(str);
-                    nvs_close(handle);
-                }
-                esp_ota_mark_app_valid_cancel_rollback();
-            }
-            else {
-                ESP_LOGE(TAG, "Diagnostics failed! Start rollback to the previous version");
-                esp_ota_mark_app_invalid_rollback_and_reboot();
-            }
+            xTaskCreate( _RunCheck, "checkApp", 2048, NULL, tskIDLE_PRIORITY, NULL );
         }
     }
 }
@@ -90,18 +100,59 @@ static void _Init()
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 }
 
+static void _ProgramRun()
+{
+    if(!_isProgramRunning && _programTask == NULL){
+        xTaskCreate( Main, "program", 20480, NULL, tskIDLE_PRIORITY, &_programTask );
+        
+    }
+    if(_isProgramRunning && _programTask != NULL){
+        vTaskResume(_programTask);
+    }
+    _isProgramRunning = true;
+    
+}
+
+static void _ProgramPause()
+{
+    if(_isProgramRunning){
+        vTaskSuspend(_programTask);
+        _isProgramRunning = false;
+    }
+}
+
+static void _ProgramDestroy()
+{
+    if(_programTask != NULL){
+        _isProgramRunning = false;
+        OnProgramDestroy();
+        vTaskDelete(_programTask);
+    }
+}
+
+static void _ProgramRestart()
+{
+    _ProgramDestroy();
+    _ProgramRun();
+}
+
 void app_main(void)
 {
+
     _Init();
 
-    _check_app();
+    _CheckApp();
 
     wifiSTAConnect(wifi_ssid, wifi_password);
+    
+    comm_AddActionVoid("ProgramRestart", _ProgramRestart);
+    comm_AddActionVoid("ProgramRun", _ProgramRun);
+    comm_AddActionVoid("ProgramPause", _ProgramPause);
 
     comm_Start();
     //commStop();
 
-    _programStart();
+    _ProgramRun();
 
     gpio_reset_pin(LED_GPIO);
     gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);

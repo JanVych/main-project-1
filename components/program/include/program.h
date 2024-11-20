@@ -1,1 +1,2 @@
-void Program();
+void Main();
+void OnProgramDestroy();

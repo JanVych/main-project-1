@@ -90,7 +90,12 @@ cJSON* SendJson()
     return array;
 }
 
-void Program()
+void OnProgramDestroy()
+{
+
+}
+
+void Main()
 {
     eta_err_t result;
     //uint8_t value = 0;
@@ -103,7 +108,7 @@ void Program()
     comm_AddMessageStr("send_string", SendString);
     comm_AddMessageI32("send_int", SendInt);
     comm_AddMessageBool("send_bool", SendBool);
-    comm_AddMessageCjson("send_json", SendJson);
+    comm_AddMessageJson("send_json", SendJson);
 
     comm_AddMessageI32("ProgramCounter", ProgramCounter);
     // comm_AddMessageCjson("RoomsTemperature", GetRoomsTemp);

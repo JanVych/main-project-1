@@ -1,17 +1,27 @@
 #include <cJSON.h>
 
+// typedf enum 
+// {
+//     COMM_MODE_HTTPS,
+//     COMM_MODE_SOCKET
+// } comm_mode_t
+
+uint32_t comm_GetIntervalSec();
+
 void comm_Start();
 void comm_Stop();
 
 // void comm_DeleteAction(char* name, serverCommCallback callback);
-void comm_AddActionStr(char* name, void(*callback)(char*));
-void comm_AddActionInt32(char* name, void(*callback)(int32_t));
-void comm_AddActionBool(char* name, void(*callback)(bool));
-void comm_AddActionJson(char* name, void(*callback)(cJSON*));
+void comm_AddActionStr(char* key, void(*callback)(char*));
+void comm_AddActionInt32(char* key, void(*callback)(int32_t));
+void comm_AddActionBool(char* key, void(*callback)(bool));
+void comm_AddActionJson(char* key, void(*callback)(cJSON*));
+void comm_AddActionVoid(char* key, void(*callback)(void));
 
 void comm_PushMessage(char* key, char* value);
 
 void comm_AddMessageStr(char* key, char*(*callback)());
 void comm_AddMessageI32(char* key, int32_t(*callback)());
 void comm_AddMessageBool(char* key, bool(*callback)());
-void comm_AddMessageCjson(char* key, cJSON*(*callback)());
+void comm_AddMessageJson(char* key, cJSON*(*callback)());
+void comm_AddMessageVoid(char* key);

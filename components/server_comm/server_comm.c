@@ -19,21 +19,22 @@ static const char *TAG = "server_comm";
 //static char* _server_address = "http://192.168.0.108:45455/";
 //static char* _server_address = "https://krepenec.streamsupporter.xyz/";
 //static char* _server_host = "192.168.0.108";
-static char* _server_host = "krepenec.streamsupporter.xyz";
+static char* _serverHost = "krepenec.streamsupporter.xyz";
 //static char* _server_host = "192.168.0.114";
 //static uint32_t _server_port = 45455;
 
-static uint32_t comm_interval_sec = 120;
-static TaskHandle_t server_comm_task;
-static bool is_initialized = false;
-static cJSON* _json_to_send;
+uint32_t _commIntervalSec = 120;
+static TaskHandle_t _serverCommTask;
+static bool _isInitialized = false;
+static cJSON* _jsonToSend;
 
 typedef enum 
 {
     COMM_CALLBACK_STR,
     COMM_CALLBACK_I32,
     COMM_CALLBACK_BOOL,
-    COMM_CALLBACK_CJSON
+    COMM_CALLBACK_CJSON,
+    COMM_CALLBACK_VOID
 } callback_type_t;
 
 typedef union message_callback_t
@@ -49,6 +50,7 @@ typedef union action_callback_u{
     void (*intCallback_f)(int32_t);
     void (*boolCallback_f)(bool);
     void (*jsonCallback_f)(cJSON*);
+    void (*voidCallback_f)(void);
 } action_callback_u;
 
 typedef struct message_comm_struct_t
@@ -182,6 +184,9 @@ static void _ProcessActions(cJSON *json_actions, server_comm_action_t* actions)
                         case COMM_CALLBACK_CJSON:
                             current_action->callback.jsonCallback_f(item);
                             break;
+                        case COMM_CALLBACK_VOID:
+                            current_action->callback.voidCallback_f();
+                            break;
                     }
                 }
                 current_action = current_action->next;
@@ -215,6 +220,9 @@ static void _LoadMessages(cJSON* json_messages, message_comm_struct_t* messages)
                 cJSON* cJson = current_message->callback.returnCjson_f();
                 cJSON_AddItemToObject(json_messages, current_message->key, cJson);
                 break;
+            case COMM_CALLBACK_VOID:
+                cJSON_AddNullToObject(json_messages, current_message->key);
+            
         }
         current_message = current_message->next;
     }
@@ -234,18 +242,18 @@ static void _MainLoop()
             vTaskDelay(1 * 1000 / portTICK_PERIOD_MS);
         }
 
-        _GetDeviceInfo(_json_to_send);
+        _GetDeviceInfo(_jsonToSend);
 
-        _LoadMessages(_json_to_send, _messages);
+        _LoadMessages(_jsonToSend, _messages);
 
         // sprintf(str, "%lu", esp_random());
         // cJSON_AddStringToObject(_json_to_send, "test", str);
         // sprintf(str, "%lu", esp_random());
         // cJSON_AddStringToObject(_json_to_send, "test2", str);
 
-        http_BuildUrl(true, _server_host, 0, "/api/modules", NULL, url, sizeof(url));
+        http_BuildUrl(true, _serverHost, 0, "/api/modules", NULL, url, sizeof(url));
         ESP_LOGI(TAG ,"URL: %s", url);
-        http_PostJson(url, _json_to_send, actions_response);
+        http_PostJson(url, _jsonToSend, actions_response);
 
         //builUrlWithQueryId(server_url, 100, server_address, "/api/actions", id);
         //httpGetJson(server_url, actions_response);
@@ -259,10 +267,10 @@ static void _MainLoop()
         }
 
         http_CleanResponse(actions_response);
-        cJSON_Delete(_json_to_send);
-        _json_to_send = cJSON_CreateObject();
+        cJSON_Delete(_jsonToSend);
+        _jsonToSend = cJSON_CreateObject();
 
-        vTaskDelay(comm_interval_sec * 1000 / portTICK_PERIOD_MS);
+        vTaskDelay(_commIntervalSec * 1000 / portTICK_PERIOD_MS);
     }
     vTaskDelete(NULL);
 }
@@ -283,7 +291,7 @@ static void _PerformOTA(char* programName)
         ESP_LOGI(TAG, "Starting OTA, program: %s", programName);
         esp_http_client_config_t config = 
         {
-            .host = _server_host,
+            .host = _serverHost,
             //.port = _server_port,
             .path = "/api/firmware",
             .query = query,
@@ -345,6 +353,11 @@ static void _SetModuleId(char *newId)
         nvs_commit(handle);
         nvs_close(handle);
     }
+}
+
+static void _SetCommIntervalSec(int32_t interval)
+{
+    _commIntervalSec = (uint32_t)interval;
 }
 
 static server_comm_action_t* _CreteAction(char* key)
@@ -416,6 +429,13 @@ void comm_AddActionJson(char* name, void(*callback)(cJSON*))
     action->type = COMM_CALLBACK_CJSON;
 }
 
+void comm_AddActionVoid(char* name, void(*callback)(void))
+{
+    server_comm_action_t* action = _AddAction(name);
+    action->callback.voidCallback_f = callback;
+    action->type = COMM_CALLBACK_VOID;
+}
+
 // void comm_AddAction(char* name, serverCommCallback callback)
 // {
 //     server_comm_action_t *current_action = _actions;
@@ -466,10 +486,10 @@ void comm_AddActionJson(char* name, void(*callback)(cJSON*))
 
 void comm_PushMessage(char* key, char* value)
 {
-    cJSON *existing_item = cJSON_GetObjectItem(_json_to_send, key);
+    cJSON *existing_item = cJSON_GetObjectItem(_jsonToSend, key);
     if (existing_item == NULL)
     {
-         cJSON_AddStringToObject(_json_to_send, key, value);
+         cJSON_AddStringToObject(_jsonToSend, key, value);
     }
 }
 
@@ -540,13 +560,22 @@ void comm_AddMessageBool(char* key, bool(*callback)())
     }
 }
 
-void comm_AddMessageCjson(char* key, cJSON*(*callback)())
+void comm_AddMessageJson(char* key, cJSON*(*callback)())
 {
     message_comm_struct_t* message = _AddMessage(key);
     if(message != NULL)
     {
         message->type = COMM_CALLBACK_CJSON;
         message->callback.returnCjson_f = callback;
+    }
+}
+
+void comm_AddMessageVoid(char* key)
+{
+    message_comm_struct_t* message = _AddMessage(key);
+    if(message != NULL)
+    {
+        message->type = COMM_CALLBACK_VOID;
     }
 }
 
@@ -557,16 +586,18 @@ static void _Init()
     comm_AddActionStr("SetModuleName", _SetModuleName);
     comm_AddActionStr("SetModuleKey", _SetModuleKey);
 
-    _json_to_send = cJSON_CreateObject();
+    comm_AddActionInt32("SetCommIntervalSec", _SetCommIntervalSec);
 
-    xTaskCreate(_MainLoop, "server_comm", 4096, NULL, tskIDLE_PRIORITY, &server_comm_task);
-    is_initialized = true;
+    _jsonToSend = cJSON_CreateObject();
+
+    xTaskCreate(_MainLoop, "server_comm", 4096, NULL, tskIDLE_PRIORITY, &_serverCommTask);
+    _isInitialized = true;
 }
 
 void comm_Start()
 {
-    if(is_initialized){
-        vTaskResume(server_comm_task);
+    if(_isInitialized){
+        vTaskResume(_serverCommTask);
     }
     else {
         _Init();
@@ -575,7 +606,13 @@ void comm_Start()
 
 void comm_Stop()
 {
-    vTaskSuspend(server_comm_task);
+    vTaskSuspend(_serverCommTask);
 }
+
+uint32_t comm_GetIntervalSec()
+{
+    return _commIntervalSec;
+}
+
 
 
