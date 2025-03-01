@@ -88,21 +88,28 @@ http_response_t* http_CreateResponse()
 
 void http_CleanResponse(http_response_t* r)
 {
-    if(r->content_type != NULL){
+    if (r != NULL)
+    {
         free(r->content_type);
-    }
-    if(r->data != NULL){
+        r->content_type = NULL;
+
         free(r->data);
-    }
-    if(cJSON_IsObject(r->json)){
-        cJSON_Delete(r->json);
+        r->data = NULL;
+
+        if(cJSON_IsObject(r->json)){
+            cJSON_Delete(r->json);
+            r->json = NULL;
+        }
     }
 }
 
 void http_DeleteResponse(http_response_t* r)
 {
-    http_CleanResponse(r);
-    free(r);
+    if(r != NULL)
+    {
+        http_CleanResponse(r);
+        free(r);
+    }
 }
 
 static void _httpSend(char* url, esp_http_client_method_t method, http_response_t* response, char* data, char* data_type)

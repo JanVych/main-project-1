@@ -44,7 +44,13 @@ static void _RunCheck()
 {
     nvs_handle handle;
     uint32_t waitTime = comm_GetIntervalSec() + 120;
-    vTaskDelay(waitTime * 1000 / portTICK_PERIOD_MS);
+    ESP_LOGI(TAG, "Diagnostics started");
+    for(int i = 0; i < waitTime; i++)
+    {
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        ESP_LOGI(TAG, "Diagnostics in progress, %d seconds left", waitTime - i);
+    }
+
     if (_CheckAppState()) 
     {
         ESP_LOGI(TAG, "Diagnostics completed successfully");
