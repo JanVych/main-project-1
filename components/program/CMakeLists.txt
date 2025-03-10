@@ -1,4 +1,4 @@
-idf_component_register(SRCS "program.c"
+idf_component_register(SRCS "program_test.c" "program.c"
                     INCLUDE_DIRS "include"
                     REQUIRES server_comm
-                    REQUIRES etatherm)
+                    REQUIRES wattrouter_mx)
