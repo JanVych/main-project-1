@@ -9,21 +9,20 @@
 #include "nvs.h"
 #include "esp_random.h"
 #include "esp_crt_bundle.h"
+#include "driver/gpio.h"
+#include "freertos/task.h"
 
 #include "server_comm.h"
 #include "http_client.h"
 #include "wifi.h"
 
+#define LED_GPIO 27
 static const char *TAG = "server_comm";
 
-//static char* _server_address = "http://192.168.0.108:45455/";
-//static char* _server_address = "https://krepenec.streamsupporter.xyz/";
-//static char* _server_host = "192.168.0.108";
-static char* _serverHost = "krepenec.streamsupporter.xyz";
-//static char* _server_host = "192.168.0.114";
-//static uint32_t _server_port = 45455;
+static char* _serverHost = "krepenec.tplinkdns.com";
+static uint32_t _server_port = 60000;
 
-uint32_t _commIntervalSec = 120;
+uint32_t _commIntervalSec = 60;
 static TaskHandle_t _serverCommTask;
 static bool _isInitialized = false;
 static cJSON* _jsonToSend;
@@ -246,17 +245,9 @@ static void _MainLoop()
 
         _LoadMessages(_jsonToSend, _messages);
 
-        // sprintf(str, "%lu", esp_random());
-        // cJSON_AddStringToObject(_json_to_send, "test", str);
-        // sprintf(str, "%lu", esp_random());
-        // cJSON_AddStringToObject(_json_to_send, "test2", str);
-
-        http_BuildUrl(true, _serverHost, 0, "/api/modules", NULL, url, sizeof(url));
+        http_BuildUrl(false, _serverHost, _server_port, "/api/modules", NULL, url, sizeof(url));
         ESP_LOGI(TAG ,"URL: %s", url);
         http_PostJson(url, _jsonToSend, actions_response);
-
-        //builUrlWithQueryId(server_url, 100, server_address, "/api/actions", id);
-        //httpGetJson(server_url, actions_response);
 
         if (actions_response->status == 200){
             ESP_LOGI(TAG ,"Response OK, processing actions...");
@@ -292,7 +283,7 @@ static void _PerformOTA(char* programName)
         esp_http_client_config_t config = 
         {
             .host = _serverHost,
-            //.port = _server_port,
+            .port = _server_port,
             .path = "/api/firmware",
             .query = query,
             .keep_alive_enable = true,

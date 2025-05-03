@@ -5,4 +5,5 @@ idf_component_register(SRCS "server_comm.c"
                     REQUIRES nvs_flash
                     REQUIRES esp_app_format
                     REQUIRES esp_https_ota
-                    REQUIRES esp_partition)
+                    REQUIRES esp_partition
+                    REQUIRES driver freertos)

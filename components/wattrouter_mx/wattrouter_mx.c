@@ -10,9 +10,10 @@
 
 void wattrouter_Init()
 {
-    InitPort(UART_NUM_2, 17, 16);
+    InitPort(UART_NUM_2, 25, 26);
 }
 
+// 16bit
 esp_err_t wattrouter_GetFeedingPower(int32_t* outValue)
 {
     *outValue = 0;
@@ -81,40 +82,41 @@ esp_err_t wattrouter_SetBoilerState(watt_router_mx_state_t state)
 
 esp_err_t wattrouter_GetMultiple(int64_t* outValue, uint16_t* addressArray, uint16_t size)
 {
+    *outValue = 0;
     uint16_t buffer[2];
+    int32_t value;
     for (int i = 0; i < size; i++)
     {
         ESP_RETURN_ERROR(ReadInputRegisters(1, addressArray[i], buffer, 2));
-        ESP_LOGI("UART", "Read %hx %hx", buffer[0], buffer[1]);
-        *outValue += (((int64_t)buffer[0] << 16) | buffer[1]) * 10;
+        value = (((int32_t)buffer[0] << 16) | buffer[1]) * 10;
+        // ESP_LOGI("UART", "Value %ld", value);
+        *outValue += value;
+        vTaskDelay(100 / portTICK_PERIOD_MS);
     }
     return ESP_OK;
 }
 
 esp_err_t wattrouter_GetTuvPower(int64_t* outValue)
 {
-    *outValue = 0;
     uint16_t addressArray[3] = {28, 32, 36};
     return wattrouter_GetMultiple(outValue, addressArray, 3);
 }
 
 esp_err_t wattrouter_GetTuvEnergy(int64_t* outValue)
 {
-    *outValue = 0;
     uint16_t addressArray[3] = {30, 34, 38};
     return wattrouter_GetMultiple(outValue, addressArray, 3);
 }
 
-esp_err_t wattrouter_GetBoilerPower(int64_t* outValue)
+esp_err_t wattrouter_GetAccuPower(int64_t* outValue)
 {
-    *outValue = 0;
     uint16_t addressArray[3] = {40, 44, 48};
     return wattrouter_GetMultiple(outValue, addressArray, 3);
 }
 
-esp_err_t wattrouter_GetBoilerEnergy(int64_t* outValue)
+esp_err_t wattrouter_GetAccuEnergy(int64_t* outValue)
 {
-    *outValue = 0;
     uint16_t addressArray[3] = {42, 46, 50};
     return wattrouter_GetMultiple(outValue, addressArray, 3);
+    return 0;
 }

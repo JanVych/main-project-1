@@ -15,7 +15,7 @@
 #include "http_client.h"
 #include "server_comm.h"
 
-#define LED_GPIO 2
+#define LED_GPIO 27
 
 static const char *TAG = "main";
 static uint8_t s_led_state = 1;
@@ -23,13 +23,13 @@ static uint8_t s_led_state = 1;
 static TaskHandle_t _programTask = NULL;
 static bool _isProgramRunning = false;
 
-static char *wifi_ssid = "TP-Link-29";
+// static char *wifi_ssid = "TP-Link-29";
+// static char *wifi_password = "***REMOVED***";
+static char *wifi_ssid = "Krepenec2";
 static char *wifi_password = "***REMOVED***";
-// static char *wifi_ssid = "Krepenec";
-// static char *wifi_password = "y4HJkldvf5erkl";
 
 
-static void _blinkLed(void)
+static void _BlinkLedTask()
 {
     s_led_state = !s_led_state;
     gpio_set_level(LED_GPIO, s_led_state);
@@ -48,7 +48,7 @@ static void _RunCheck()
     for(int i = 0; i < waitTime; i++)
     {
         vTaskDelay(1000 / portTICK_PERIOD_MS);
-        ESP_LOGI(TAG, "Diagnostics in progress, %d seconds left", waitTime - i);
+        // ESP_LOGI(TAG, "Diagnostics in progress, %lud seconds left", waitTime - i);
     }
 
     if (_CheckAppState()) 
@@ -112,7 +112,7 @@ static void _ProgramRun()
         xTaskCreate( Main, "program", 20480, NULL, tskIDLE_PRIORITY, &_programTask );
         
     }
-    if(_isProgramRunning && _programTask != NULL){
+    if(!_isProgramRunning && _programTask != NULL){
         vTaskResume(_programTask);
     }
     _isProgramRunning = true;
@@ -166,8 +166,8 @@ void app_main(void)
     while (true)
     {
         vTaskDelay(2000 / portTICK_PERIOD_MS);
-        ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
-        _blinkLed();
+        //ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
+        _BlinkLedTask();
 
     }
 }

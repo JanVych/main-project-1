@@ -9,6 +9,10 @@ void wattrouter_Init();
 
 esp_err_t wattrouter_GetTuvPower(int64_t* outValue);
 esp_err_t wattrouter_GetTuvEnergy(int64_t* outValue);
-esp_err_t wattrouter_GetBoilerPower(int64_t* outValue);
-esp_err_t wattrouter_GetBoilerEnergy(int64_t* outValue);
+esp_err_t wattrouter_GetAccuPower(int64_t* outValue);
+esp_err_t wattrouter_GetAccuEnergy(int64_t* outValue);
 esp_err_t wattrouter_GetFeedingPower(int32_t* outValue);
+
+esp_err_t wattrouter_SetTuvState(watt_router_mx_state_t state);
+esp_err_t wattrouter_SetBoilerState(watt_router_mx_state_t state);
+esp_err_t wattrouter_SetFeedingPower(int32_t value);

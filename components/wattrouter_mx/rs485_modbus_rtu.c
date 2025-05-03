@@ -6,6 +6,7 @@
 
 #include "esp_log.h"
 
+
 #define ESP_RETURN_ERROR(x) do {    \
     esp_err_t __err_rc = (x);       \
     if (__err_rc != ESP_OK) {       \
@@ -74,14 +75,14 @@ esp_err_t ReadHoldingRegisters(uint8_t device, uint16_t address, uint16_t* outBu
     ESP_RETURN_ERROR(_SendFrame(device, 3, address, data, 2));
     
     uint16_t len = uart_read_bytes(UART_NUM_2, response, response_size, 1000 / portTICK_PERIOD_MS);
-    if (len > 0)
-    {
-        // ESP_LOGI("UART", "Read %d", len);
-        // for (int i = 0; i < len; i++) 
-        // {
-        //     ESP_LOGI("UART", "Byte %d: 0x%02X", i, response[i]);
-        // }
-    }
+    // if (len > 0)
+    // {
+    //     ESP_LOGI("UART", "Read %d", len);
+    //     for (int i = 0; i < len; i++) 
+    //     {
+    //         ESP_LOGI("UART", "Byte %d: 0x%02X", i, response[i]);
+    //     }
+    // }
     if(len == response_size)
     {
         for (int i = 0; i < bufferSize; i++)
@@ -90,7 +91,7 @@ esp_err_t ReadHoldingRegisters(uint8_t device, uint16_t address, uint16_t* outBu
         }
         return ESP_OK;
     }
-    return ESP_ERR_TIMEOUT;
+    return ESP_ERR_INVALID_RESPONSE;
 }
 
 esp_err_t WriteSingleRegister(uint8_t device, uint16_t address, uint16_t value)
@@ -110,7 +111,7 @@ esp_err_t WriteSingleRegister(uint8_t device, uint16_t address, uint16_t value)
         //     ESP_LOGI("UART", "Byte %d: 0x%02X", i, response[i]);
         // }
     }
-    return 0;
+    return ESP_OK;
 }
 
 esp_err_t WriteMultipleRegisters(uint8_t device, uint16_t address, uint16_t* data, uint16_t size)
@@ -141,10 +142,10 @@ esp_err_t WriteMultipleRegisters(uint8_t device, uint16_t address, uint16_t* dat
         //     ESP_LOGI("UART", "Byte %d: 0x%02X", i, response[i]);
         // }
     }
-    return 0;
+    return ESP_OK;
 }
 
-int32_t ReadInputRegisters(uint8_t device, uint16_t address, uint16_t* outBuffer, uint16_t bufferSize)
+esp_err_t ReadInputRegisters(uint8_t device, uint16_t address, uint16_t* outBuffer, uint16_t bufferSize)
 {
     uint32_t response_size = 5 + bufferSize * 2;
     uint8_t response[response_size];
@@ -152,28 +153,25 @@ int32_t ReadInputRegisters(uint8_t device, uint16_t address, uint16_t* outBuffer
     data[0] = bufferSize >> 8;
     data[1] = bufferSize & 0xFF;
     _SendFrame(device, 4, address, data, 2);
-    // if(result != 8)
-    // {
-    //     return result;
-    // }
     
     int len = uart_read_bytes(UART_NUM_2, response, response_size, 1000 / portTICK_PERIOD_MS);
-    if (len > 0)
-    {
-        // ESP_LOGI("UART", "Read %d", len);
-        // for (int i = 0; i < len; i++) 
-        // {
-        //     ESP_LOGI("UART", "Byte %d: 0x%02X", i, response[i]);
-        // }
-    }
+    // if (len > 0)
+    // {
+    //     ESP_LOGI("UART", "Read %d", len);
+    //     for (int i = 0; i < len; i++) 
+    //     {
+    //         ESP_LOGI("UART", "Byte %d: 0x%02X", i, response[i]);
+    //     }
+    // }
     if(len == response_size)
     {
         for (int i = 0; i < bufferSize; i++)
         {
             outBuffer[i] = response[3 + i * 2] << 8 | response[4 + i * 2];
         }
+        return ESP_OK;
     }
-    return 0;
+    return ESP_ERR_INVALID_RESPONSE;
 }
 
 esp_err_t InitPort(uart_port_t uart_num, int16_t tx, int32_t rx)
