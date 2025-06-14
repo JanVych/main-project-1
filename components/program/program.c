@@ -3,14 +3,18 @@
 #include "program.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
-#include "driver/uart.h"
+
+#include "wattrouter_mx.h"
 
 #include "server_comm.h"
-#include "etatherm.h"
 
-static const char *TAG = "program";
+//static const char *TAG = "program";
 
-static uint8_t _roomsTemp[16];
+static int64_t _data[5] = {0, 0, 0, 0};
+static int32_t _feedingPower = 0;
+
+static bool _feedingPowerSetMode= false;
+static int32_t _feedingPowerSet = 0;
 
 int32_t _counter = 0;
 
@@ -19,139 +23,126 @@ int32_t ProgramCounter()
     return _counter;
 }
 
-void LogActions()
+int32_t FeedingPower()
 {
-    ESP_LOGI(TAG, "free memory: %i", (int)esp_get_free_heap_size());
+    return _feedingPower;
 }
 
-cJSON* GetRoomsTemp()
+int32_t BoilerEnergy()
 {
-    cJSON* array = cJSON_CreateArray();
-    cJSON* item;
-    for(int i = 0; i < 16; i++)
-    {
-        item = cJSON_CreateNumber((double) _roomsTemp[i]);
-        cJSON_AddItemToArray(array, item);
-    }
-    return array;
+    return (int32_t)_data[0];
 }
 
-// void SetRoomTemp()
-// {
-
-// }
-
-void PrintString(char* str)
+int32_t BoilerPower()
 {
-    ESP_LOGI(TAG, "STR: %s", str);
+    return (int32_t)_data[1];
 }
 
-void PrintInt(int32_t value)
+int32_t TuvEnergy()
 {
-    ESP_LOGI(TAG, "INT: %li", value);
+    return (int32_t)_data[2];
 }
 
-void PrintBool(bool value)
+int32_t TuvPower()
 {
-    ESP_LOGI(TAG, "BOOL: %i", value);
+    return (int32_t)_data[3];
 }
 
-void PrintJson(cJSON* json)
+void SetFeedingPower(int32_t value)
 {
-    char* str = cJSON_Print(json);
-    ESP_LOGI(TAG, "JSON: %s", str);
-    free(str);
+    _feedingPowerSet = value;
+    _feedingPowerSetMode = true;
 }
 
-char* SendString()
+void SetFeedingPowerSetMode(bool mode)
 {
-    return "Hello from program";
-}
-
-int32_t SendInt()
-{
-    return 123;
-}
-
-bool SendBool()
-{
-    return true;
-}
-
-cJSON* SendJson()
-{
-    cJSON* array = cJSON_CreateArray();
-    cJSON* item;
-    for(int i = 0; i < 16; i++)
-    {
-        item = cJSON_CreateNumber(i);
-        cJSON_AddItemToArray(array, item);
-    }
-    return array;
+    _feedingPowerSetMode = mode;
 }
 
 void OnProgramDestroy()
 {
-
 }
 
 void Main()
 {
-    eta_err_t result;
-    //uint8_t value = 0;
-
-    comm_AddActionStr("print_string", PrintString);
-    comm_AddActionInt32("print_int", PrintInt);
-    comm_AddActionBool("print_bool", PrintBool);
-    comm_AddActionJson("print_json", PrintJson);
-
-    comm_AddMessageStr("send_string", SendString);
-    comm_AddMessageI32("send_int", SendInt);
-    comm_AddMessageBool("send_bool", SendBool);
-    comm_AddMessageJson("send_json", SendJson);
-
     comm_AddMessageI32("ProgramCounter", ProgramCounter);
-    // comm_AddMessageCjson("RoomsTemperature", GetRoomsTemp);
-    vTaskDelay(15000 / portTICK_PERIOD_MS);
+    comm_AddMessageI32("FeedingPower", FeedingPower);
+    comm_AddMessageI32("BoilerEnergy", BoilerEnergy);
+    comm_AddMessageI32("BoilerPower", BoilerPower);
+    comm_AddMessageI32("TuvEnergy", TuvEnergy);
+    comm_AddMessageI32("TuvPower", TuvPower);
 
+    comm_AddActionInt32("SetFeedingPower", SetFeedingPower);
+    comm_AddActionBool("SetFeedingPowerSetMode", SetFeedingPowerSetMode);
 
-    result = eta_Init(UART_NUM_2, 17, 16);
-    ESP_LOGI(TAG, "uart init: %d", result);
-    // uint8_t room = 2;
-    // uint8_t setval = 14;
-    while(true)
+    wattrouter_Init();
+
+    vTaskDelay(6000 / portTICK_PERIOD_MS);
+    esp_err_t result;
+
+    while (true)
     {
-        // LogActions();
-        // comm_PushMessage("program_interval_message", _randomString);
-        // _someNumber++;
+        // wattrouter_SetTuvState(WATT_ROUTER_STATE_AUTO);
+        // wattrouter_SetAccuState(WATT_ROUTER_STATE_AUTO);
+        // wattrouter_SetFeedingPower(200);
 
-        // ESP_LOGI(TAG, "rooms scan started");
+        if(_feedingPowerSetMode)
+        {
+            ESP_LOGI("UART", "Set feeding power: %ld", _feedingPowerSet);
+            result = wattrouter_SetFeedingPower(_feedingPowerSet);
+            ESP_ERROR_CHECK_WITHOUT_ABORT(result);
+            if(result == ESP_OK)
+            {
+                ESP_LOGI("UART", "Feeding power set: %ld", _feedingPowerSet);
+            }
+        }
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-        // for(int i = 0; i < 16; i++)
-        // {
-        //     result = eta_GetRealTemp(1, i, &value);
-        //     ESP_LOGI(TAG, "real temp result: %d, room: %d, value: %u", result, i, value);
-        //     if(!result){
-        //         _roomsTemp[i] = value;
-        //     }
-        // }
-        // ESP_LOGI(TAG, "rooms scan ended");
+        ESP_LOGI("UART", "Get feeding power");
+        result = wattrouter_GetFeedingPower(&_feedingPower);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(result);
+        if(result == ESP_OK)
+        {
+            ESP_LOGI("UART", "Feeding power: %ld", _feedingPower);
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
 
+        ESP_LOGI("UART", "Get accu energy");
+        result = wattrouter_GetAccuEnergy(&_data[0]);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(result);
+        if(result == ESP_OK)
+        {
+            ESP_LOGI("UART", "Accu energy: %lld", _data[0]);
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
 
-        // result = eta_GetRealTemp(1, room, &value);
-        // ESP_LOGI(TAG, "real temp result: %d, room: %u, value: %u", result, room, value);
-        // result = eta_GetDesiredTemp(1, room, &value);
-        // ESP_LOGI(TAG, "desired temp result: %d, room: %u, value: %u", result, room, value);
-        // result = eta_GetOzTemp(1, room, &value);
-        // ESP_LOGI(TAG, "oz temp result: %d, room: %u, value: %u", result, room, value);
+        ESP_LOGI("UART", "Get accu power");
+        result = wattrouter_GetAccuPower(&_data[1]);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(result);
+        if(result == ESP_OK)
+        {
+            ESP_LOGI("UART", "Accu power: %lld", _data[1]);
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
 
-        // result = eta_SetOzTemp(1,room, setval);
-        // ESP_LOGI(TAG, "set oz temp result: %d, room: %u, value: %u", result, room, setval);
+        ESP_LOGI("UART", "Get Tuv energy");
+        result = wattrouter_GetTuvEnergy(&_data[2]);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(result);
+        if(result == ESP_OK)
+        {
+            ESP_LOGI("UART", "Tuv energy: %lld", _data[2]);
+        }
+        vTaskDelay(100 / portTICK_PERIOD_MS);
 
-        // result = eta_GetTempShift(1, 0, &value);
-        // ESP_LOGI(TAG, "type value: %d, room: %u, value: %u", result, room, value);
+        ESP_LOGI("UART", "Get Tuv power");
+        result = wattrouter_GetTuvPower(&_data[3]);
+        ESP_ERROR_CHECK_WITHOUT_ABORT(result);
+        if(result == ESP_OK)
+        {
+            ESP_LOGI("UART", "Tuv power: %lld", _data[3]);
+        }
 
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
         _counter++;
-        vTaskDelay(100000 / portTICK_PERIOD_MS);
     }
 }
