@@ -16,12 +16,11 @@
 
 static const char *TAG = "server_comm";
 
-//static char* _server_address = "http://192.168.0.108:45455/";
-//static char* _server_address = "https://krepenec.streamsupporter.xyz/";
-//static char* _server_host = "192.168.0.108";
-static char* _serverHost = "krepenec.streamsupporter.xyz";
-//static char* _server_host = "192.168.0.114";
-//static uint32_t _server_port = 45455;
+static char* _server_host = "192.168.0.165";
+// static char* _server_host = "krepenec.tplinkdns.com";
+// static char* _server_host = "192.168.0.114";
+// static uint32_t _server_port = 60000;
+static uint32_t _server_port = 45455;
 
 uint32_t _commIntervalSec = 120;
 static TaskHandle_t _serverCommTask;
@@ -251,7 +250,7 @@ static void _MainLoop()
         // sprintf(str, "%lu", esp_random());
         // cJSON_AddStringToObject(_json_to_send, "test2", str);
 
-        http_BuildUrl(true, _serverHost, 0, "/api/modules", NULL, url, sizeof(url));
+        http_BuildUrl(false, _server_host, _server_port, "/api/modules", NULL, url, sizeof(url));
         ESP_LOGI(TAG ,"URL: %s", url);
         http_PostJson(url, _jsonToSend, actions_response);
 
@@ -291,13 +290,13 @@ static void _PerformOTA(char* programName)
         ESP_LOGI(TAG, "Starting OTA, program: %s", programName);
         esp_http_client_config_t config = 
         {
-            .host = _serverHost,
-            //.port = _server_port,
+            .host = _server_host,
+            .port = _server_port,
             .path = "/api/firmware",
             .query = query,
             .keep_alive_enable = true,
-            .crt_bundle_attach = esp_crt_bundle_attach,
-        };
+            // .crt_bundle_attach = esp_crt_bundle_attach,
+        };                              
 
         esp_https_ota_config_t ota_config = {
             .http_config = &config,
