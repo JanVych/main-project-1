@@ -77,8 +77,6 @@
 
 // void Main()
 // {
-//     eta_err_t result;
-
 //     comm_AddActionStr("print_string", PrintString);
 //     comm_AddActionInt32("print_int", PrintInt);
 //     comm_AddActionBool("print_bool", PrintBool);
@@ -92,16 +90,10 @@
 //     comm_AddMessageI32("ProgramCounter", ProgramCounter);
 //     vTaskDelay(15000 / portTICK_PERIOD_MS);
 
-
-//     result = eta_Init(UART_NUM_2, 17, 16);
-//     ESP_LOGI(TAG, "uart init: %d", result);
-
 //     while(true)
 //     {
 //         LogActions();
 //         comm_PushMessage("program_interval_message", "interval message");
-
-//         ESP_LOGI(TAG, "rooms scan started");
 
 //         _counter++;
 //         vTaskDelay(100000 / portTICK_PERIOD_MS);

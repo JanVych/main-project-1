@@ -22,6 +22,7 @@ void comm_PushMessage(char* key, char* value);
 
 void comm_AddMessageStr(char* key, char*(*callback)());
 void comm_AddMessageI32(char* key, int32_t(*callback)());
+void comm_AddMessageFloat(char* key, float(*callback)());
 void comm_AddMessageBool(char* key, bool(*callback)());
 void comm_AddMessageJson(char* key, cJSON*(*callback)());
 void comm_AddMessageVoid(char* key);

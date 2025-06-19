@@ -18,17 +18,8 @@
 
 #define LED_GPIO 27
 static const char *TAG = "server_comm";
-
-<<<<<<< HEAD
-static char* _server_host = "192.168.0.165";
-// static char* _server_host = "krepenec.tplinkdns.com";
-// static char* _server_host = "192.168.0.114";
-// static uint32_t _server_port = 60000;
-static uint32_t _server_port = 45455;
-=======
 static char* _serverHost = "krepenec.tplinkdns.com";
-static uint32_t _server_port = 60000;
->>>>>>> 41c622a258c87162f02a977db125baab00192d54
+static uint32_t _serverPort = 60000;
 
 uint32_t _commIntervalSec = 60;
 static TaskHandle_t _serverCommTask;
@@ -39,6 +30,7 @@ typedef enum
 {
     COMM_CALLBACK_STR,
     COMM_CALLBACK_I32,
+    COMM_CALLBACK_FLOAT,
     COMM_CALLBACK_BOOL,
     COMM_CALLBACK_CJSON,
     COMM_CALLBACK_VOID
@@ -48,6 +40,7 @@ typedef union message_callback_t
 {
     char* (*returStr_f)();
     int32_t (*returnI32_f)();
+    float (*returnFloat_f)();
     bool (*returnBool_f)();
     cJSON* (*returnCjson_f)();
 } message_callback_t;
@@ -55,6 +48,7 @@ typedef union message_callback_t
 typedef union action_callback_u{
     void (*strCallback_f)(char*);
     void (*intCallback_f)(int32_t);
+    void (*floatCallback_f)(float);
     void (*boolCallback_f)(bool);
     void (*jsonCallback_f)(cJSON*);
     void (*voidCallback_f)(void);
@@ -182,6 +176,12 @@ static void _ProcessActions(cJSON *json_actions, server_comm_action_t* actions)
                                 current_action->callback.intCallback_f(item->valueint);
                             }
                             break;
+                        case COMM_CALLBACK_FLOAT:
+                            if(cJSON_IsNumber(item))
+                            {
+                                current_action->callback.floatCallback_f((float)item->valuedouble);
+                            }
+                            break;
                         case COMM_CALLBACK_BOOL:
                             if(cJSON_IsBool(item))
                             {
@@ -219,6 +219,10 @@ static void _LoadMessages(cJSON* json_messages, message_comm_struct_t* messages)
                 double int32 = current_message->callback.returnI32_f();
                 cJSON_AddNumberToObject(json_messages, current_message->key, (double) int32);
                 break;
+            case COMM_CALLBACK_FLOAT:
+                float floatValue = current_message->callback.returnFloat_f();
+                cJSON_AddNumberToObject(json_messages, current_message->key, floatValue);
+                break;
             case COMM_CALLBACK_BOOL:
                 bool boolean = current_message->callback.returStr_f();
                 cJSON_AddBoolToObject(json_messages, current_message->key, boolean);
@@ -238,7 +242,7 @@ static void _LoadMessages(cJSON* json_messages, message_comm_struct_t* messages)
 // TODO add security to headers - https://github.com/espressif/esp-idf/issues/3097
 static void _MainLoop()
 {
-    http_response_t *actions_response = http_CreateResponse();
+    http_response_t *actionsResponse = http_CreateResponse();
     char url[120];
 
     while(true)
@@ -253,25 +257,20 @@ static void _MainLoop()
 
         _LoadMessages(_jsonToSend, _messages);
 
-<<<<<<< HEAD
-        // sprintf(str, "%lu", esp_random());
-        // cJSON_AddStringToObject(_json_to_send, "test", str);
-        // sprintf(str, "%lu", esp_random());
-        // cJSON_AddStringToObject(_json_to_send, "test2", str);
+        http_BuildUrl(false, _serverHost, _serverPort, "/api/modules", NULL, url, sizeof(url));
+        ESP_LOGI(TAG ,"Sending data to: %s", url);
+        //ESP_LOGI(TAG ,"Data to send: %s", cJSON_PrintUnformatted(_jsonToSend));
+        http_PostJson(url, _jsonToSend, actionsResponse);
 
-        http_BuildUrl(false, _serverHost, _server_port, "/api/modules", NULL, url, sizeof(url));
-        ESP_LOGI(TAG ,"URL: %s", url);
-        http_PostJson(url, _jsonToSend, actions_response);
-
-        if (actions_response->status == 200){
+        if (actionsResponse->status == 200){
             ESP_LOGI(TAG ,"Response OK, processing actions...");
-            _ProcessActions(actions_response->json, _actions);
+            _ProcessActions(actionsResponse->json, _actions);
         }
         else{
-            ESP_LOGI(TAG ,"POST to: %s, error, status code: %ld", url, actions_response->status);
+            ESP_LOGI(TAG ,"POST to: %s, error, status code: %ld", url, actionsResponse->status);
         }
 
-        http_CleanResponse(actions_response);
+        http_CleanResponse(actionsResponse);
         cJSON_Delete(_jsonToSend);
         _jsonToSend = cJSON_CreateObject();
 
@@ -296,12 +295,8 @@ static void _PerformOTA(char* programName)
         ESP_LOGI(TAG, "Starting OTA, program: %s", programName);
         esp_http_client_config_t config = 
         {
-<<<<<<< HEAD
-            .host = _server_host,
-=======
             .host = _serverHost,
->>>>>>> 41c622a258c87162f02a977db125baab00192d54
-            .port = _server_port,
+            .port = _serverPort,
             .path = "/api/firmware",
             .query = query,
             .keep_alive_enable = true,
@@ -556,6 +551,16 @@ void comm_AddMessageI32(char* key, int32_t(*callback)())
     {
         message->type = COMM_CALLBACK_I32;
         message->callback.returnI32_f = callback;
+    }
+}
+
+void comm_AddMessageFloat(char* key, float(*callback)())
+{
+    message_comm_struct_t* message = _AddMessage(key);
+    if(message != NULL)
+    {
+        message->type = COMM_CALLBACK_FLOAT;
+        message->callback.returnFloat_f = callback;
     }
 }
 

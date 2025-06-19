@@ -3,16 +3,9 @@
 
 #include "esp_timer.h"
 #include "driver/uart.h"
-
 #include "esp_log.h"
 
-
-#define ESP_RETURN_ERROR(x) do {    \
-    esp_err_t __err_rc = (x);       \
-    if (__err_rc != ESP_OK) {       \
-        return __err_rc;            \
-    }                               \
-} while(0)
+#include "helper.h"
 
 static uint16_t _Crc16(uint8_t *data, uint16_t size) 
 {

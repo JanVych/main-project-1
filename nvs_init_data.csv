@@ -1,0 +1,5 @@
+key,type,encoding,value
+init_data,namespace,,
+server_address,data,string,"someAddress"
+wifi_ssid,data,string,"someSsid"
+wifi_password,data,string,"somePassword"

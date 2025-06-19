@@ -3,17 +3,18 @@
 
 #include "esp_timer.h"
 #include "driver/uart.h"
-
 #include "esp_log.h"
+
+#include "helper.h"
 #include "rs485_modbus_rtu.c"
 #include "wattrouter_mx.h"
 
-void wattrouter_Init()
+esp_err_t wattrouter_Init(uart_port_t uart_num, int16_t tx, int32_t rx)
 {
-    InitPort(UART_NUM_2, 25, 26);
+    ESP_RETURN_ERROR(InitPort(uart_num, tx, rx));
+    return ESP_OK;
 }
 
-// 16bit
 esp_err_t wattrouter_GetFeedingPower(int32_t* outValue)
 {
     *outValue = 0;

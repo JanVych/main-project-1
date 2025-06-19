@@ -5,7 +5,7 @@ typedef enum
     WATT_ROUTER_STATE_AUTO = 2,
 } watt_router_mx_state_t;
 
-void wattrouter_Init();
+esp_err_t wattrouter_Init(uart_port_t uart_num, int16_t tx, int32_t rx);
 
 esp_err_t wattrouter_GetTuvPower(int64_t* outValue);
 esp_err_t wattrouter_GetTuvEnergy(int64_t* outValue);

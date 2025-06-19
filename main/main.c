@@ -45,7 +45,7 @@ static void _RunCheck()
     nvs_handle handle;
     uint32_t wait_time = comm_GetIntervalSec() + 120;
     ESP_LOGI(TAG, "Diagnostics started");
-<<<<<<< HEAD
+    
     vTaskDelay(wait_time * 1000 / portTICK_PERIOD_MS);
     // for(int i = 0; i < waitTime; i++)
     // {
@@ -162,9 +162,9 @@ void app_main(void)
 
     wifiSTAConnect(wifi_ssid, wifi_password);
     
-    comm_AddActionVoid("ProgramRestart", _ProgramRestart);
-    comm_AddActionVoid("ProgramRun", _ProgramRun);
-    comm_AddActionVoid("ProgramPause", _ProgramPause);
+    // comm_AddActionVoid("ProgramRestart", _ProgramRestart);
+    // comm_AddActionVoid("ProgramRun", _ProgramRun);
+    // comm_AddActionVoid("ProgramPause", _ProgramPause);
 
     comm_AddMessageI32("ProgramStatus", _GetProgramStatus);
 
