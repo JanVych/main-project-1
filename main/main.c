@@ -23,10 +23,10 @@ static uint8_t s_led_state = 1;
 static TaskHandle_t _programTask = NULL;
 static bool _isProgramRunning = false;
 
-// static char *wifi_ssid = "TP-Link-29";
-// static char *wifi_password = "***REMOVED***";
-static char *wifi_ssid = "Krepenec2";
+static char *wifi_ssid = "TP-Link-29";
 static char *wifi_password = "***REMOVED***";
+// static char *wifi_ssid = "Krepenec2";
+// static char *wifi_password = "***REMOVED***";
 
 
 static void _BlinkLedTask()
@@ -45,7 +45,6 @@ static void _RunCheck()
     nvs_handle handle;
     uint32_t wait_time = comm_GetIntervalSec() + 120;
     ESP_LOGI(TAG, "Diagnostics started");
-    
     vTaskDelay(wait_time * 1000 / portTICK_PERIOD_MS);
     // for(int i = 0; i < waitTime; i++)
     // {
@@ -160,11 +159,13 @@ void app_main(void)
 
     _CheckApp();
 
+    ESP_LOGI(TAG, "Starting WiFi connection to SSID: %s", wifi_ssid);
+    ESP_LOGI(TAG, "WiFi password: %s", wifi_password);
     wifiSTAConnect(wifi_ssid, wifi_password);
     
-    // comm_AddActionVoid("ProgramRestart", _ProgramRestart);
-    // comm_AddActionVoid("ProgramRun", _ProgramRun);
-    // comm_AddActionVoid("ProgramPause", _ProgramPause);
+    comm_AddActionVoid("ProgramRestart", _ProgramRestart);
+    comm_AddActionVoid("ProgramRun", _ProgramRun);
+    comm_AddActionVoid("ProgramPause", _ProgramPause);
 
     comm_AddMessageI32("ProgramStatus", _GetProgramStatus);
 
