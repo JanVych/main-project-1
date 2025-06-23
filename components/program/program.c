@@ -5,137 +5,97 @@
 #include "freertos/FreeRTOS.h"
 #include "driver/uart.h"
 
-#include "wattrouter_mx.h"
 #include "server_comm.h"
-#include "ecomax.h"
 
+static const char *TAG = "program";
 
-static int64_t _wattrouterData[5] = {0, 0, 0, 0};
-static int32_t _feedingPower = 0;
+int32_t _counter = 0;
 
-static bool _feedingPowerSetMode= false;
-static int32_t _feedingPowerSet = 0;
-
-static ecomax_data_t _ecomaxData = {0};
-
-static int32_t _counter = 0;
-
-int32_t ProgramCounter(){
+int32_t ProgramCounter()
+{
     return _counter;
 }
-int32_t FeedingPower(){
-    return _feedingPower;
-}
-int32_t BoilerEnergy(){
-    return _wattrouterData[0];
-}
-int32_t BoilerPower(){
-    return _wattrouterData[1];
-}
-int32_t TuvEnergy(){
-    return _wattrouterData[2];
-}
-int32_t TuvPower(){
-    return _wattrouterData[3];
+
+void LogActions()
+{
+    ESP_LOGI(TAG, "free memory: %i", (int)esp_get_free_heap_size());
 }
 
-void SetFeedingPower(int32_t value)
+void PrintString(char* str)
 {
-    _feedingPowerSet = value;
-    _feedingPowerSetMode = true;
-}
-void SetFeedingPowerMode(bool mode)
-{
-    _feedingPowerSetMode = mode;
+    ESP_LOGI(TAG, "STR: %s", str);
 }
 
-float MixTemperature(){
-    return _ecomaxData.mixTemperature;
+void PrintInt(int32_t value)
+{
+    ESP_LOGI(TAG, "INT: %li", value);
 }
-float FlueTemperature(){
-    return _ecomaxData.flueTemperature;
+
+void PrintBool(bool value)
+{
+    ESP_LOGI(TAG, "BOOL: %i", value);
 }
-float TuvTemperature(){
-    return _ecomaxData.tuvTemperature;
+
+void PrintJson(cJSON* json)
+{
+    char* str = cJSON_Print(json);
+    ESP_LOGI(TAG, "JSON: %s", str);
+    free(str);
 }
-float BoilerTemperature(){
-    return _ecomaxData.boilerTemperature;
+
+char* SendString()
+{
+    return "Hello from program";
 }
-float AcuUpperTemperature(){
-    return _ecomaxData.acuUpperTemperature;
+
+int32_t SendInt()
+{
+    return 123;
 }
-float AcuBottomTemperature(){
-    return _ecomaxData.acuBottomTemperature;
+
+bool SendBool()
+{
+    return true;
 }
-float OutsideTemperature(){
-    return _ecomaxData.outsideTemperature;
-}
-float OxygenLevel(){
-    return _ecomaxData.oxygenLevel;
+
+cJSON* SendJson()
+{
+    cJSON* array = cJSON_CreateArray();
+    cJSON* item;
+    for(int i = 0; i < 16; i++)
+    {
+        item = cJSON_CreateNumber(i);
+        cJSON_AddItemToArray(array, item);
+    }
+    return array;
 }
 
 void OnProgramDestroy()
 {
+
 }
 
 void Main()
 {
-    //watt router
+    comm_AddActionStr("print_string", PrintString);
+    comm_AddActionInt32("print_int", PrintInt);
+    comm_AddActionBool("print_bool", PrintBool);
+    comm_AddActionJson("print_json", PrintJson);
+
+    comm_AddMessageStr("send_string", SendString);
+    comm_AddMessageI32("send_int", SendInt);
+    comm_AddMessageBool("send_bool", SendBool);
+    comm_AddMessageJson("send_json", SendJson);
+
     comm_AddMessageI32("ProgramCounter", ProgramCounter);
-    comm_AddMessageI32("FeedingPower", FeedingPower);
-    comm_AddMessageI32("BoilerEnergy", BoilerEnergy);
-    comm_AddMessageI32("BoilerPower", BoilerPower);
-    comm_AddMessageI32("TuvEnergy", TuvEnergy);
-    comm_AddMessageI32("TuvPower", TuvPower);
+    vTaskDelay(15000 / portTICK_PERIOD_MS);
 
-    comm_AddActionInt32("SetFeedingPower", SetFeedingPower);
-    comm_AddActionBool("SetFeedingPowerMode", SetFeedingPowerMode);
-
-    wattrouter_Init(UART_NUM_2, 25, 26);
-
-    //ecomax
-    ecomax_Init(UART_NUM_0, 17, 16);
-    comm_AddMessageFloat("MixTemperature", MixTemperature);
-    comm_AddMessageFloat("FlueTemperature", FlueTemperature);
-    comm_AddMessageFloat("TuvTemperature", TuvTemperature);
-    comm_AddMessageFloat("BoilerTemperature", BoilerTemperature);
-    comm_AddMessageFloat("AcuUpperTemperature", AcuUpperTemperature);
-    comm_AddMessageFloat("AcuBottomTemperature", AcuBottomTemperature);
-    comm_AddMessageFloat("OutsideTemperature", OutsideTemperature);
-    comm_AddMessageFloat("OxygenLevel", OxygenLevel);
-
-    vTaskDelay(6000 / portTICK_PERIOD_MS);
-
-    while (true)
+    while(true)
     {
-        ESP_LOGI("PROGRAM","Program start");
-        // wattrouter_SetTuvState(WATT_ROUTER_STATE_AUTO);
-        // wattrouter_SetAccuState(WATT_ROUTER_STATE_AUTO);
-
-        if(_feedingPowerSetMode)
-        {
-            ESP_ERROR_CHECK_WITHOUT_ABORT(wattrouter_SetFeedingPower(_feedingPowerSet));
-        }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-        ESP_ERROR_CHECK_WITHOUT_ABORT(wattrouter_GetFeedingPower(&_feedingPower));
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-
-        ESP_ERROR_CHECK_WITHOUT_ABORT(wattrouter_GetAccuEnergy(&_wattrouterData[0]));
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-
-        ESP_ERROR_CHECK_WITHOUT_ABORT(wattrouter_GetAccuPower(&_wattrouterData[1]));
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-
-        ESP_ERROR_CHECK_WITHOUT_ABORT(wattrouter_GetTuvEnergy(&_wattrouterData[2]));
-        vTaskDelay(100 / portTICK_PERIOD_MS);
-
-        ESP_ERROR_CHECK_WITHOUT_ABORT(wattrouter_GetTuvPower(&_wattrouterData[3]));
-
-        ESP_ERROR_CHECK_WITHOUT_ABORT(ecomax_GetData(&_ecomaxData));
+        LogActions();
+        comm_PushMessage("program_interval_message", "interval message");
 
         _counter++;
-        ESP_LOGI("PROGRAM", "Program end");
-        vTaskDelay(10000 / portTICK_PERIOD_MS);
+        vTaskDelay(100000 / portTICK_PERIOD_MS);
     }
 }
