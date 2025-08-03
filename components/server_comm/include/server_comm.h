@@ -1,13 +1,5 @@
 #include <cJSON.h>
 
-// typedf enum 
-// {
-//     COMM_MODE_HTTPS,
-//     COMM_MODE_SOCKET
-// } comm_mode_t
-
-uint32_t comm_GetIntervalSec();
-
 void comm_Start();
 void comm_Stop();
 

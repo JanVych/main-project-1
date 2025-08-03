@@ -17,14 +17,14 @@
 
 #define LED_GPIO 27
 
-static const char *TAG = "main";
 static uint8_t s_led_state = 1;
+static const char *TAG = "main";
 
 static TaskHandle_t _programTask = NULL;
 static bool _isProgramRunning = false;
 
-static char *wifi_ssid = "TP-Link-29";
-static char *wifi_password = "***REMOVED***";
+// static char *wifi_ssid = "TP-Link-29";
+// static char *wifi_password = "***REMOVED***";
 // static char *wifi_ssid = "Krepenec2";
 // static char *wifi_password = "***REMOVED***";
 
@@ -43,30 +43,35 @@ bool _CheckAppState()
 static void _RunCheck()
 {
     nvs_handle handle;
-    uint32_t wait_time = comm_GetIntervalSec() + 120;
+    size_t len;
+    char* str;
+    int32_t interval = 60;
+
+    nvs_open("config", NVS_READWRITE, &handle);
+    nvs_get_i32(handle, "CommInterval", &interval);
+    nvs_close(handle);
+
+    // wait for 2 intervals + 60 seconds;
+    uint32_t waiTimeSec = interval * 2 + 60; 
     ESP_LOGI(TAG, "Diagnostics started");
-    vTaskDelay(wait_time * 1000 / portTICK_PERIOD_MS);
-    // for(int i = 0; i < waitTime; i++)
-    // {
-    //     vTaskDelay(1000 / portTICK_PERIOD_MS);
-    //     ESP_LOGI(TAG, "Diagnostics in progress, %d seconds left", waitTime - i);
-    // }
+    vTaskDelay(waiTimeSec * 1000 / portTICK_PERIOD_MS);
 
     if (_CheckAppState()) 
     {
         ESP_LOGI(TAG, "Diagnostics completed successfully");
-        // confirm and set new program name
-        nvs_open("storage", NVS_READWRITE, &handle);
-        size_t len;
-        if (nvs_get_str(handle,"_ProgramName", NULL, &len) == ESP_OK)
+        // confirm program name
+        nvs_open("config", NVS_READWRITE, &handle);
+        
+        if (nvs_get_str(handle,"ProgramName", NULL, &len) == ESP_OK)
         {
-            char* str = malloc(len);
-            nvs_get_str(handle, "_ProgramName", str, &len);
-            nvs_set_str(handle, "ProgramName", str);
+            str = malloc(len);
+            nvs_get_str(handle, "ProgramName", str, &len);
+            nvs_set_str(handle, "_ProgramName", str);
             nvs_commit(handle);
             free(str);
             nvs_close(handle);
         }
+        // confirm current partition
         esp_ota_mark_app_valid_cancel_rollback();
     }
     else 
@@ -81,6 +86,9 @@ static void _CheckApp()
 {
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t ota_state;
+    nvs_handle_t handle;
+    size_t len;
+    char* str;
     
     esp_err_t result = esp_ota_get_state_partition(running, &ota_state);
     // get state of current running partition
@@ -91,6 +99,19 @@ static void _CheckApp()
         if (ota_state == ESP_OTA_IMG_PENDING_VERIFY) 
         {
             xTaskCreate( _RunCheck, "checkApp", 2048, NULL, tskIDLE_PRIORITY, NULL );
+        }
+        else
+        {
+            nvs_open("config", NVS_READWRITE, &handle);
+            
+            if (nvs_get_str(handle,"_ProgramName", NULL, &len) == ESP_OK)
+            {
+                str = malloc(len);
+                nvs_get_str(handle, "_ProgramName", str, &len);
+                nvs_set_str(handle, "ProgramName", str);
+                free(str);
+            }
+            nvs_close(handle);
         }
     }
 }
@@ -111,13 +132,11 @@ static void _ProgramRun()
 {
     if(!_isProgramRunning && _programTask == NULL){
         xTaskCreate( Main, "program", 20480, NULL, tskIDLE_PRIORITY, &_programTask );
-        
     }
     if(!_isProgramRunning && _programTask != NULL){
         vTaskResume(_programTask);
     }
     _isProgramRunning = true;
-    
 }
 
 static void _ProgramPause()
@@ -146,10 +165,54 @@ static int32_t _GetProgramStatus()
     return 3;
 }
 
+static void _SetWifiSsid(char *ssid)
+{
+    ESP_LOGI(TAG ,"set wifi ssid to: %s", ssid);
+    nvs_handle_t handle;
+    nvs_open("config", NVS_READWRITE, &handle);
+    nvs_set_str(handle, "WifiSsid", ssid);
+    nvs_commit(handle);
+    nvs_close(handle);
+} 
+
+static void _SetWifiPassword(char *password)
+{
+    ESP_LOGI(TAG ,"set wifi password to: %s", password);
+    nvs_handle_t handle;
+    nvs_open("config", NVS_READWRITE, &handle); 
+    nvs_set_str(handle, "WifiPassword", password);
+    nvs_commit(handle);
+    nvs_close(handle);
+}
+
 static void _ProgramRestart()
 {
     _ProgramDestroy();
     _ProgramRun();
+}
+
+static void _ConnectToWifi()
+{
+    nvs_handle handle;
+    nvs_open("config", NVS_READWRITE, &handle);
+    
+    size_t ssid_len, password_len;
+    if (nvs_get_str(handle, "WifiSsid", NULL, &ssid_len) == ESP_OK &&
+        nvs_get_str(handle, "WifiPassword", NULL, &password_len) == ESP_OK)
+    {
+        char *ssid = malloc(ssid_len);
+        char *password = malloc(password_len);
+        
+        nvs_get_str(handle, "WifiSsid", ssid, &ssid_len);
+        nvs_get_str(handle, "WifiPassword", password, &password_len);
+        
+        wifiSTAConnect(ssid, password);
+        
+        free(ssid);
+        free(password);
+    }
+    
+    nvs_close(handle);
 }
 
 void app_main(void)
@@ -159,29 +222,34 @@ void app_main(void)
 
     _CheckApp();
 
-    ESP_LOGI(TAG, "Starting WiFi connection to SSID: %s", wifi_ssid);
-    ESP_LOGI(TAG, "WiFi password: %s", wifi_password);
-    wifiSTAConnect(wifi_ssid, wifi_password);
+    _ConnectToWifi();
     
     comm_AddActionVoid("ProgramRestart", _ProgramRestart);
     comm_AddActionVoid("ProgramRun", _ProgramRun);
     comm_AddActionVoid("ProgramPause", _ProgramPause);
 
     comm_AddMessageI32("ProgramStatus", _GetProgramStatus);
+    comm_AddActionStr("SetWifiSsid", _SetWifiSsid);
+    comm_AddActionStr("SetWifiPassword", _SetWifiPassword);
+
+    _ProgramRun();
 
     comm_Start();
     //commStop();
 
-    _ProgramRun();
 
     gpio_reset_pin(LED_GPIO);
     gpio_set_direction(LED_GPIO, GPIO_MODE_OUTPUT);
 
     while (true)
     {
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
         //ESP_LOGI(TAG, "Turning the LED %s!", s_led_state == true ? "ON" : "OFF");
         _BlinkLedTask();
-
+        if(!wifiIsSTAConnected())
+        {
+            ESP_LOGI(TAG, "WiFi is not connected, trying to reconnect...");
+            _ConnectToWifi();
+        }
     }
 }

@@ -42,14 +42,14 @@ static esp_err_t _clientEventGetHandler(esp_http_client_event_handle_t evt)
     return ESP_OK;
 }
 
-esp_err_t http_BuildUrl(bool tls_ssl, const char *host, uint16_t port, const char *path, const char *query, char *url, int max_len) 
+esp_err_t http_BuildUrl(bool ssl, const char *host, uint16_t port, const char *path, const char *query, char *url, int max_len) 
 {
     if (host == NULL || url == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
     int len = 0;
 
-    if(tls_ssl){
+    if(ssl){
         len += snprintf(url + len, max_len - len, "https://");
     }
     else{

@@ -21,4 +21,4 @@ http_response_t* http_CreateResponse();
 void http_DeleteResponse(http_response_t* response);
 void http_CleanResponse(http_response_t* r);
 
-esp_err_t http_BuildUrl(bool tls_ssl, const char *host, uint16_t port, const char *path, const char *query, char *url, int max_len); 
+esp_err_t http_BuildUrl(bool ssl, const char *host, uint16_t port, const char *path, const char *query, char *url, int max_len); 

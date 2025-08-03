@@ -76,6 +76,8 @@
 
 // void OnProgramDestroy()
 // {
+//     ecomax_Deinit(UART_NUM_0);
+//     uart_driver_delete(UART_NUM_2);
 // }
 
 // void Main()

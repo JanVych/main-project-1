@@ -18,13 +18,15 @@
 
 #define LED_GPIO 27
 static const char *TAG = "server_comm";
-static char* _serverHost = "krepenec.tplinkdns.com";
-static uint32_t _serverPort = 60000;
-
+// static char* _serverHost = "krepenec.tplinkdns.com";
+static char _serverAddress[120];
+// static uint32_t _serverPort = 60000;
 uint32_t _commIntervalSec = 60;
+
 static TaskHandle_t _serverCommTask;
 static bool _isInitialized = false;
 static cJSON* _jsonToSend;
+static bool _isHttpEnabled = false;
 
 typedef enum 
 {
@@ -99,7 +101,7 @@ static void _GetDeviceInfo(cJSON* json)
     size_t len;
     char* str;
 
-    nvs_open("storage", NVS_READONLY, &handle);
+    nvs_open("config", NVS_READONLY, &handle);
 
     if (nvs_get_i64(handle, "ModuleId", &id) == ESP_OK){
         cJSON_AddNumberToObject(json, "Id", id);
@@ -128,16 +130,24 @@ static void _GetDeviceInfo(cJSON* json)
         cJSON_AddStringToObject(json, "ProgramVersion", str);
         free(str);
     }
+    if (nvs_get_str(handle,"WifiPassword", NULL, &len) == ESP_OK){
+        str = malloc(len);
+        nvs_get_str(handle, "WifiPassword", str, &len);
+        cJSON_AddStringToObject(json, "WifiPassword", str);
+        free(str);
+    }
+
     nvs_close(handle);
     const esp_app_desc_t *desc = esp_app_get_description();
     cJSON_AddStringToObject(json, "Chip", _GetChipName());
     cJSON_AddStringToObject(json, "FirmwareVersion", desc->version);
     cJSON_AddStringToObject(json, "IDFVersion", desc->idf_ver);
     cJSON_AddNumberToObject(json, "FreeHeap", (double)esp_get_free_heap_size());
+    cJSON_AddNumberToObject(json, "CommInterval", _commIntervalSec);
 
     str = wifiGetSTASsid();
     if(str != NULL){
-        cJSON_AddStringToObject(json, "WifiCurrent", str);
+        cJSON_AddStringToObject(json, "WifiSsid", str);
         free(str);
     }
     // str = wifiGetAvailableNetworks();
@@ -257,9 +267,8 @@ static void _MainLoop()
 
         _LoadMessages(_jsonToSend, _messages);
 
-        http_BuildUrl(false, _serverHost, _serverPort, "/api/modules", NULL, url, sizeof(url));
+        http_BuildUrl(!_isHttpEnabled, _serverAddress, 0, "/api/modules", NULL, url, sizeof(url));
         ESP_LOGI(TAG ,"Sending data to: %s", url);
-        //ESP_LOGI(TAG ,"Data to send: %s", cJSON_PrintUnformatted(_jsonToSend));
         http_PostJson(url, _jsonToSend, actionsResponse);
 
         if (actionsResponse->status == 200){
@@ -283,34 +292,43 @@ static void _PerformOTA(char* programName)
 {
     if(wifiIsSTAConnected())
     {
+        char url[120];
         char query[50];
         nvs_handle_t handle;
-        nvs_open("storage", NVS_READWRITE, &handle);
-        nvs_set_str(handle, "_ProgramName", programName);
-        nvs_commit(handle);
-        nvs_close(handle);
+        char* oldProgramName;
+        size_t len;
 
         snprintf(query, sizeof(query), "program=%s", programName);
-
+        http_BuildUrl(!_isHttpEnabled, _serverAddress, 0, "/api/firmware", query, url, sizeof(url));
         ESP_LOGI(TAG, "Starting OTA, program: %s", programName);
+
         esp_http_client_config_t config = 
         {
-            .host = _serverHost,
-            .port = _serverPort,
-            .path = "/api/firmware",
-            .query = query,
+            .url = url,
             .keep_alive_enable = true,
-            // .crt_bundle_attach = esp_crt_bundle_attach,
+            .crt_bundle_attach = esp_crt_bundle_attach,
         };                              
-
         esp_https_ota_config_t ota_config = {
             .http_config = &config,
         };
 
-        //ESP_LOGI(TAG, "Attempting to download update from %s", config.url);
+        ESP_LOGI(TAG, "Attempting to download update from %s", config.url);
         esp_err_t ret = esp_https_ota(&ota_config);
+        
         if (ret == ESP_OK)
         {
+            nvs_open("config", NVS_READWRITE, &handle);
+            if (nvs_get_str(handle,"ProgramName", NULL, &len) == ESP_OK)
+            {
+                oldProgramName = malloc(len);
+                nvs_get_str(handle, "ProgramName", oldProgramName, &len);
+                nvs_set_str(handle, "_ProgramName", oldProgramName);
+                free(oldProgramName);
+            }
+
+            nvs_set_str(handle, "ProgramName", programName);
+            nvs_commit(handle);
+            nvs_close(handle);
             ESP_LOGI(TAG, "OTA Succeed, Rebooting...");
             esp_restart();
         } 
@@ -320,14 +338,14 @@ static void _PerformOTA(char* programName)
             return;
         }
     }
-    ESP_LOGE(TAG, "Firmware upgrade failed, no internet connection");
+    ESP_LOGE(TAG, "Firmware upgrade failed, no wifi connection");
 }
 
 static void _SetModuleName(char *newName)
 {
     ESP_LOGI(TAG ,"set module name to: %s",newName);
     nvs_handle_t handle;
-    nvs_open("storage", NVS_READWRITE, &handle);
+    nvs_open("config", NVS_READWRITE, &handle);
     nvs_set_str(handle, "ModuleName", newName);
     nvs_commit(handle);
     nvs_close(handle);
@@ -337,10 +355,21 @@ static void _SetModuleKey(char *newKey)
 {
     ESP_LOGI(TAG ,"set module key to: %s",newKey);
     nvs_handle_t handle;
-    nvs_open("storage", NVS_READWRITE, &handle);
+    nvs_open("config", NVS_READWRITE, &handle);
     nvs_set_str(handle, "ModuleKey", newKey);
     nvs_commit(handle);
     nvs_close(handle);
+}
+
+static void _SetServerAddress(char *newAddress)
+{
+    ESP_LOGI(TAG ,"set server address to: %s",newAddress);
+    nvs_handle_t handle;
+    nvs_open("config", NVS_READWRITE, &handle);
+    nvs_set_str(handle, "ServerAddress", newAddress);
+    nvs_commit(handle);
+    nvs_close(handle);
+    strlcpy(_serverAddress, newAddress, sizeof(_serverAddress));
 }
 
 static void _SetModuleId(char *newId)
@@ -352,15 +381,21 @@ static void _SetModuleId(char *newId)
     id = strtoll(newId, &endptr, 10);
     if(*endptr == '\0')
     {
-        nvs_open("storage", NVS_READWRITE, &handle);
+        nvs_open("config", NVS_READWRITE, &handle);
         nvs_set_i64(handle, "ModuleId", id);
         nvs_commit(handle);
         nvs_close(handle);
     }
 }
 
-static void _SetCommIntervalSec(int32_t interval)
+static void _SetCommInterval(int32_t interval)
 {
+    ESP_LOGI(TAG ,"set module communication interval to: %ld", interval);
+    nvs_handle_t handle;
+    nvs_open("config", NVS_READWRITE, &handle);
+    nvs_set_i32(handle, "CommInterval", interval);
+    nvs_commit(handle);
+    nvs_close(handle);
     _commIntervalSec = (uint32_t)interval;
 }
 
@@ -384,7 +419,7 @@ static server_comm_action_t* _CreteAction(char* key)
 //     return action;
 // }
 
-server_comm_action_t* _AddAction(char* name)
+static server_comm_action_t* _AddAction(char* name)
 {
     server_comm_action_t *current_action = _actions;
     server_comm_action_t *prew_action = NULL;
@@ -495,6 +530,11 @@ void comm_PushMessage(char* key, char* value)
     {
          cJSON_AddStringToObject(_jsonToSend, key, value);
     }
+    else
+    {
+        ESP_LOGI(TAG, "Message with key: %s already exists, updating value", key);
+        cJSON_SetValuestring(existing_item, value);
+    }
 }
 
 static message_comm_struct_t* _CreateMessage(char* key)
@@ -595,12 +635,36 @@ void comm_AddMessageVoid(char* key)
 
 static void _Init()
 { 
+    nvs_handle_t handle;
+    size_t len;
+    int32_t interval = 0;
+    int8_t isHttpEnabled = 0;
+    ESP_LOGI(TAG, "Communication Init:");
+    nvs_open("config", NVS_READONLY, &handle);
+    if (nvs_get_str(handle,"ServerAddress", NULL, &len) == ESP_OK){
+        nvs_get_str(handle, "ServerAddress", _serverAddress, &len);
+        ESP_LOGI(TAG, "ServerAddress: %s", _serverAddress);
+    }
+    if (nvs_get_i32(handle, "CommInterval", &interval) == ESP_OK){
+        _commIntervalSec = (uint32_t)interval;
+        ESP_LOGI(TAG, "CommInterval: %ld", _commIntervalSec);
+    }
+    else {
+        _commIntervalSec = 60;
+    }
+    if (nvs_get_i8(handle, "EnableHttp", &isHttpEnabled) == ESP_OK){
+        _isHttpEnabled = isHttpEnabled;
+        ESP_LOGI(TAG, "EnableHttp: %d", _isHttpEnabled);
+    }
+    nvs_close(handle);
+
     comm_AddActionStr("PerformOTA", _PerformOTA);
     comm_AddActionStr("SetModuleId", _SetModuleId);
     comm_AddActionStr("SetModuleName", _SetModuleName);
     comm_AddActionStr("SetModuleKey", _SetModuleKey);
 
-    comm_AddActionInt32("SetCommIntervalSec", _SetCommIntervalSec);
+    comm_AddActionInt32("SetCommInterval", _SetCommInterval);
+    comm_AddActionStr("SetServerAddress", _SetServerAddress);
 
     _jsonToSend = cJSON_CreateObject();
 
@@ -622,11 +686,3 @@ void comm_Stop()
 {
     vTaskSuspend(_serverCommTask);
 }
-
-uint32_t comm_GetIntervalSec()
-{
-    return _commIntervalSec;
-}
-
-
-
