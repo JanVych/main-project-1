@@ -6,4 +6,5 @@ idf_component_register(SRCS "server_comm.c"
                     REQUIRES esp_app_format
                     REQUIRES esp_https_ota
                     REQUIRES esp_partition
-                    REQUIRES driver freertos)
+                    REQUIRES driver 
+                    REQUIRES freertos)

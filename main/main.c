@@ -23,12 +23,6 @@ static const char *TAG = "main";
 static TaskHandle_t _programTask = NULL;
 static bool _isProgramRunning = false;
 
-// static char *wifi_ssid = "TP-Link-29";
-// static char *wifi_password = "***REMOVED***";
-// static char *wifi_ssid = "Krepenec2";
-// static char *wifi_password = "***REMOVED***";
-
-
 static void _BlinkLedTask()
 {
     s_led_state = !s_led_state;

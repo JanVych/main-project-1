@@ -1,101 +1,162 @@
 #include <stdio.h>
-#include <cJSON.h>
-#include "program.h"
-#include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "freertos/timers.h"
+#include "driver/gpio.h"
+#include "esp_log.h"
+#include "freertos/task.h"
 #include "driver/uart.h"
+#include "driver/gpio.h"
 
 #include "server_comm.h"
 
-static const char *TAG = "program";
+#define LED1_GPIO GPIO_NUM_13
+#define LED2_GPIO GPIO_NUM_14
 
-int32_t _counter = 0;
+#define BUTTON1_GPIO GPIO_NUM_26
 
-int32_t ProgramCounter()
+static const char *_tag = "program";
+
+typedef struct {
+    gpio_num_t ledGpio;
+    bool ledState;
+    uint32_t intervalMs;
+} LedBlinkParams_t;
+
+static LedBlinkParams_t _ledBlinkParamsList[] = 
 {
-    return _counter;
+    { LED1_GPIO, false, 3000 }, // LED1, blink every 500ms
+    { LED2_GPIO, false, 500}, // LED2, blink every 3s
+};
+
+static TaskHandle_t _led1TaskHandle = NULL;
+static TaskHandle_t _led2TaskHandle = NULL;
+
+static uint32_t _button1Pressed = 0;
+TimerHandle_t _debounceTimer; 
+
+
+static void BlinkLed(gpio_num_t gpioNum, uint8_t ledState) 
+{
+    gpio_set_level(gpioNum, ledState);
+    ESP_LOGI(_tag, "LED on GPIO %d is now %s", gpioNum, ledState ? "ON" : "OFF");
 }
 
-void LogActions()
+static void LedBlinkTask(void *param)
 {
-    ESP_LOGI(TAG, "free memory: %i", (int)esp_get_free_heap_size());
-}
-
-void PrintString(char* str)
-{
-    ESP_LOGI(TAG, "STR: %s", str);
-}
-
-void PrintInt(int32_t value)
-{
-    ESP_LOGI(TAG, "INT: %li", value);
-}
-
-void PrintBool(bool value)
-{
-    ESP_LOGI(TAG, "BOOL: %i", value);
-}
-
-void PrintJson(cJSON* json)
-{
-    char* str = cJSON_Print(json);
-    ESP_LOGI(TAG, "JSON: %s", str);
-    free(str);
-}
-
-char* SendString()
-{
-    return "Hello from program";
-}
-
-int32_t SendInt()
-{
-    return 123;
-}
-
-bool SendBool()
-{
-    return true;
-}
-
-cJSON* SendJson()
-{
-    cJSON* array = cJSON_CreateArray();
-    cJSON* item;
-    for(int i = 0; i < 16; i++)
+    LedBlinkParams_t *p = (LedBlinkParams_t *)param;
+    while (true) 
     {
-        item = cJSON_CreateNumber(i);
-        cJSON_AddItemToArray(array, item);
+        p->ledState = !p->ledState;
+        BlinkLed(p->ledGpio, p->ledState);
+        vTaskDelay(pdMS_TO_TICKS(p->intervalMs));
     }
-    return array;
 }
 
-void OnProgramDestroy()
+void IRAM_ATTR ButtonIsrHandler(void *arg)
+ {
+    xTimerResetFromISR(_debounceTimer, NULL);
+}
+
+void debounceTimerCallback(TimerHandle_t Timer) 
 {
-
+    if (gpio_get_level(BUTTON1_GPIO) == 0) 
+    {
+        _button1Pressed++;
+        ESP_LOGI(_tag, "Button Pressed!");
+    }
 }
 
+void SetLedBlinkInterval(int ledNumber, uint32_t intervalMs) 
+{
+    if (ledNumber == 1)
+    {
+        _ledBlinkParamsList[0].intervalMs = intervalMs;
+    } 
+    else if (ledNumber == 2) 
+    {
+        _ledBlinkParamsList[1].intervalMs = intervalMs;
+    } 
+}
+
+void ChangeLed1Interval(int32_t newInterval) 
+{
+    SetLedBlinkInterval(1, newInterval);
+}
+
+void ChangeLed2Interval(int32_t newInterval) 
+{
+    SetLedBlinkInterval(2, newInterval);
+}
+
+int32_t GetButtonPressCount() 
+{
+    int32_t count = _button1Pressed;
+    _button1Pressed = 0;
+    return count;
+}
+
+int32_t GetLed1Interval() 
+{
+    return _ledBlinkParamsList[0].intervalMs;
+}
+int32_t GetLed2Interval() 
+{
+    return _ledBlinkParamsList[1].intervalMs;
+}
+
+void OnProgramDestroy() 
+{
+    if (_led1TaskHandle != NULL) 
+    {
+        vTaskDelete(_led1TaskHandle);
+    }
+    if (_led2TaskHandle != NULL) 
+    {
+        vTaskDelete(_led2TaskHandle);
+    }
+    if (_debounceTimer != NULL) 
+    {
+        xTimerDelete(_debounceTimer, 0);
+        gpio_isr_handler_remove(BUTTON1_GPIO);
+    }
+}
 void Main()
 {
-    comm_AddActionStr("print_string", PrintString);
-    comm_AddActionInt32("print_int", PrintInt);
-    comm_AddActionBool("print_bool", PrintBool);
-    comm_AddActionJson("print_json", PrintJson);
+    // Led configuration
+    gpio_reset_pin(LED1_GPIO);
+    gpio_set_direction(LED1_GPIO, GPIO_MODE_OUTPUT);
+    gpio_reset_pin(LED2_GPIO);
+    gpio_set_direction(LED2_GPIO, GPIO_MODE_OUTPUT);
 
-    comm_AddMessageStr("send_string", SendString);
-    comm_AddMessageI32("send_int", SendInt);
-    comm_AddMessageBool("send_bool", SendBool);
-    comm_AddMessageJson("send_json", SendJson);
+    // led tasks
+    xTaskCreate(LedBlinkTask, "Led2BlinkTask", 2048, &_ledBlinkParamsList[0], 5, &_led2TaskHandle);
+    xTaskCreate(LedBlinkTask, "Led2BlinkTask", 2048, &_ledBlinkParamsList[1], 5, &_led2TaskHandle);
 
-    comm_AddMessageI32("ProgramCounter", ProgramCounter);
-    vTaskDelay(15000 / portTICK_PERIOD_MS);
+    // Button configuration
+    gpio_set_direction(BUTTON1_GPIO, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(BUTTON1_GPIO, GPIO_PULLUP_ONLY); 
+    gpio_set_intr_type(BUTTON1_GPIO, GPIO_INTR_NEGEDGE);
 
-    while(true)
+    _debounceTimer = xTimerCreate("debounceTimer", 
+        pdMS_TO_TICKS(50), 
+        pdFALSE, 
+        NULL, 
+        debounceTimerCallback);
+
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add(BUTTON1_GPIO, ButtonIsrHandler, NULL);
+
+    // Communication setup
+    comm_AddMessageI32("ButtonPressCount", GetButtonPressCount);
+    comm_AddMessageI32("Led1Interval", GetLed1Interval);
+    comm_AddMessageI32("Led2Interval", GetLed2Interval);
+
+    // LED control
+    comm_AddActionInt32("SetLed1Interval", ChangeLed1Interval);
+    comm_AddActionInt32("SetLed2Interval", ChangeLed2Interval);
+
+    while (true)
     {
-        LogActions();
-        comm_PushMessage("program_interval_message", "interval message");
-
-        _counter++;
-        vTaskDelay(100000 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
-}
+}    

@@ -3,4 +3,6 @@ idf_component_register(SRCS "program.c"
                     REQUIRES server_comm
                     REQUIRES wattrouter_mx
                     REQUIRES driver
-                    REQUIRES ecomax)
+                    REQUIRES ecomax
+                    REQUIRES etatherm
+                    REQUIRES freertos)

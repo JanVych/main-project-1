@@ -1,5 +1,6 @@
 // #include <stdio.h>
 // #include <cJSON.h>
+// #include <math.h>
 // #include "program.h"
 // #include "esp_log.h"
 // #include "freertos/FreeRTOS.h"
@@ -49,30 +50,31 @@
 //     _feedingPowerSetMode = mode;
 // }
 
-// float MixTemperature(){
-//     return _ecomaxData.mixTemperature;
+// int32_t MixTemperature() {
+//     return (int32_t)roundf(_ecomaxData.mixTemperature);
 // }
-// float FlueTemperature(){
-//     return _ecomaxData.flueTemperature;
+// int32_t FlueTemperature() {
+//     return (int32_t)roundf(_ecomaxData.flueTemperature);
 // }
-// float TuvTemperature(){
-//     return _ecomaxData.tuvTemperature;
+// int32_t TuvTemperature() {
+//     return (int32_t)roundf(_ecomaxData.tuvTemperature);
 // }
-// float BoilerTemperature(){
-//     return _ecomaxData.boilerTemperature;
+// int32_t BoilerTemperature() {
+//     return (int32_t)roundf(_ecomaxData.boilerTemperature);
 // }
-// float AcuUpperTemperature(){
-//     return _ecomaxData.acuUpperTemperature;
+// int32_t AcuUpperTemperature() {
+//     return (int32_t)roundf(_ecomaxData.acuUpperTemperature);
 // }
-// float AcuBottomTemperature(){
-//     return _ecomaxData.acuBottomTemperature;
+// int32_t AcuBottomTemperature() {
+//     return (int32_t)roundf(_ecomaxData.acuBottomTemperature);
 // }
-// float OutsideTemperature(){
-//     return _ecomaxData.outsideTemperature;
+// int32_t OutsideTemperature() {
+//     return (int32_t)roundf(_ecomaxData.outsideTemperature);
 // }
-// float OxygenLevel(){
-//     return _ecomaxData.oxygenLevel;
-// }
+// // float OxygenLevel(){
+// //     return _ecomaxData.oxygenLevel;
+// // }
+
 
 // void OnProgramDestroy()
 // {
@@ -97,14 +99,14 @@
 
 //     //ecomax
 //     ecomax_Init(UART_NUM_0, 17, 16);
-//     comm_AddMessageFloat("MixTemperature", MixTemperature);
-//     comm_AddMessageFloat("FlueTemperature", FlueTemperature);
-//     comm_AddMessageFloat("TuvTemperature", TuvTemperature);
-//     comm_AddMessageFloat("BoilerTemperature", BoilerTemperature);
-//     comm_AddMessageFloat("AcuUpperTemperature", AcuUpperTemperature);
-//     comm_AddMessageFloat("AcuBottomTemperature", AcuBottomTemperature);
-//     comm_AddMessageFloat("OutsideTemperature", OutsideTemperature);
-//     comm_AddMessageFloat("OxygenLevel", OxygenLevel);
+//     comm_AddMessageI32("MixTemperature", MixTemperature);
+//     comm_AddMessageI32("FlueTemperature", FlueTemperature);
+//     comm_AddMessageI32("TuvTemperature", TuvTemperature);
+//     comm_AddMessageI32("BoilerTemperature", BoilerTemperature);
+//     comm_AddMessageI32("AcuUpperTemperature", AcuUpperTemperature);
+//     comm_AddMessageI32("AcuBottomTemperature", AcuBottomTemperature);
+//     comm_AddMessageI32("OutsideTemperature", OutsideTemperature);
+//     // comm_AddMessageFloat("OxygenLevel", OxygenLevel);
 
 //     vTaskDelay(6000 / portTICK_PERIOD_MS);
 
