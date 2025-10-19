@@ -10,27 +10,50 @@
 
 // static const char *TAG = "program";
 
-// static uint8_t _roomsTemp[16];
+// static uint8_t _roomsCurrentTemp[16];
+// static uint8_t _roomsDesiredTemp[16];
+// static uint8_t _rommsLabel[16] = {
+//     0, 0, 0, 0, 
+//     0, 0, 0, 0, 
+//     0, 0, 0, 0, 
+//     0, 0, 0, 0
+// };
 
-// int32_t _counter = 0;
 
-// int32_t ProgramCounter()
+// int32_t _programMinutesCounter = 0;
+
+// int32_t ProgramMinutesCounter()
 // {
-//     return _counter;
+//     return _programMinutesCounter;
 // }
 
-// cJSON* GetRoomsTemp()
+// static cJSON* BuildJsonArrayFromU8(const uint8_t* data, int count)
 // {
 //     cJSON* array = cJSON_CreateArray();
-//     cJSON* item;
-//     for(int i = 0; i < 16; i++)
+//     if (!array) return NULL;
+
+//     for (int i = 0; i < count; ++i)
 //     {
-//         item = cJSON_CreateNumber((double) _roomsTemp[i]);
+//         cJSON* item = cJSON_CreateNumber((double)data[i]);
+//         if (!item)
+//         {
+//             cJSON_Delete(array);
+//             return NULL;
+//         }
 //         cJSON_AddItemToArray(array, item);
 //     }
 //     return array;
 // }
 
+// cJSON* GetRoomsTemp()
+// {
+//     return BuildJsonArrayFromU8(_roomsCurrentTemp, 16);
+// }
+
+// cJSON* GetRoomsLabel()
+// {
+//     return BuildJsonArrayFromU8(_rommsLabel, 16);
+// }
 
 // void OnProgramDestroy()
 // {
@@ -42,10 +65,10 @@
 //     eta_err_t result;
 //     uint8_t value = 0;
 
-//     comm_AddMessageI32("ProgramCounter", ProgramCounter);
+//     comm_AddMessageI32("ProgramMinutesCounter", ProgramMinutesCounter);
 //     comm_AddMessageJson("RoomsTemperature", GetRoomsTemp);
+//     comm_AddMessageJson("RoomsLabel", GetRoomsLabel);
 //     vTaskDelay(15000 / portTICK_PERIOD_MS);
-
 
 //     result = eta_Init(UART_NUM_2, 17, 16);
 //     ESP_LOGI(TAG, "uart init: %d", result);
@@ -58,7 +81,7 @@
 //             result = eta_GetRealTemp(1, i, &value);
 //             ESP_LOGI(TAG, "real temp result: %d, room: %d, value: %u", result, i, value);
 //             if(!result){
-//                 _roomsTemp[i] = value;
+//                 _roomsCurrentTemp[i] = value;
 //             }
 //         }
 //         ESP_LOGI(TAG, "rooms scan ended");
@@ -77,7 +100,7 @@
 //         // result = eta_GetTempShift(1, 0, &value);
 //         // ESP_LOGI(TAG, "type value: %d, room: %u, value: %u", result, room, value);
 
-//         _counter++;
+//         _programMinutesCounter++;
 //         vTaskDelay(60000 / portTICK_PERIOD_MS);
 //     }
 // }
