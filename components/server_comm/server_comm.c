@@ -208,8 +208,12 @@ static void _ProcessActions(cJSON *json_actions, server_comm_action_t* actions)
                 }
                 current_action = current_action->next;
             };
-            if(!found){
-                ESP_LOGI(TAG ,"callback not registrated,name: %s, arg: %s",item->string ,item->valuestring);
+            if(!found)
+            {
+                char *val_str = cJSON_PrintUnformatted(item);
+                ESP_LOGI(TAG, "callback not registered, item: %s", val_str);
+                free(val_str);
+                // ESP_LOGI(TAG ,"callback not registrated,name: %s, arg: %s",item->string ,item->valuestring);
             }
     }
 }
